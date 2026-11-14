@@ -211,12 +211,17 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 - **Desenvolvimento:** as migrações padrão do Laravel foram trocadas por estas; se o banco `pulse` local for de antes, use `docker compose exec app php artisan migrate:fresh`. O `rollback` apaga as tabelas com os dados e nunca roda em produção.
 - **Verificado:** `migrate:fresh` e `migrate:rollback` sem erro; `php artisan test` = 22 testes (79 asserções) em `pulse_test`, incluindo `DELETE` e `TRUNCATE` em `questions`/`attempts` falhando, chave `(user_id, id)`, FK `RESTRICT` (23503), nome de usuário e papel validados no banco, imagem em `bytea` e `recebido_em` avançando a cada mudança; testes do front passam; o site não mudou.
 
-### 3. Login e sessão
-- [ ] `POST /login`, `POST /logout`, `GET /api/me`, `POST /api/senha`; Sanctum SPA; middleware `admin`
-- [ ] Limite de tentativas; conta desativada não entra; `must_change_password`; sessão de 30 dias renovada a cada uso (D5)
-- [ ] Nome de usuário validado: minúsculas, números, ponto e hífen (D6)
-- [ ] `php artisan pulse:criar-admin` e seeder local de usuários de teste
+### 3. Login e sessão — **concluída em 14/11/2026**
+- [x] `POST /login`, `POST /logout`, `GET /api/me`, `POST /api/senha`; Sanctum SPA; middleware `admin`
+- [x] Limite de tentativas; conta desativada não entra; `must_change_password`; sessão de 30 dias renovada a cada uso (D5)
+- [x] Nome de usuário validado: minúsculas, números, ponto e hífen (D6)
+- [x] `php artisan pulse:criar-admin` e seeder local de usuários de teste
 - **Pronto quando:** testes cobrem: senha certa entra; errada não; a 6ª tentativa em 1 minuto recebe 429; desativada não entra; trocar senha encerra as outras sessões; rota de admin devolve 403 ao estudante; sem token CSRF a gravação devolve 419; nome de usuário com maiúscula ou espaço é recusado.
+- **Feito além do pedido:** mesma mensagem (e mesmo tempo, com hash falso) para senha errada, usuário inexistente e conta desativada; tentativa contada antes de conferir a senha (requisições em paralelo não furam o limite); conta desativada perde a sessão já aberta; com senha provisória o servidor só libera `/api/me` e `/api/senha` (403 no resto); `GET /api/admin/usuarios` (lista, sem hash); Sanctum sem tokens (`Authorization: Bearer` não autentica); cookie de sessão `Secure` por padrão com `APP_ENV=production`; seeder (`admin-teste`, `estudante-teste`) gera senha aleatória a cada execução, mostra no terminal e só roda em `local`/`testing`.
+- **Nomes dos campos:** `/login` recebe `username` e `password`; `/api/senha` recebe `current_password` e `password` (nomes que o Laravel já não guarda na sessão nem em log).
+- **Para a etapa 5:** o front deve mandar o nome de usuário em minúsculas (o servidor recusa maiúscula com 422). O Sanctum só liga a sessão se vier `Referer` ou `Origin`: não usar `Referrer-Policy: no-referrer`, senão `GET /api/me` dá 401.
+- **Para a etapa 12 (Render):** o limite por IP usa `$request->ip()`. Com `trustProxies(at: '*')` o IP pode vir de um `X-Forwarded-For` forjado; confiar só no proxy do Render (faixa dele) ou conferir que o Render sobrescreve o cabeçalho, e testar que 30 erros de um IP não travam os outros.
+- **Verificado:** `php artisan test` = 43 testes (21 novos de login/admin), em `pulse_test`, cada item do "Pronto quando" com teste próprio, inclusive 419 com o CSRF real ligado, sessão expirando após 31 dias parada e sobrevivendo a 40 dias de uso, sessão regenerada no login e invalidada no logout. `revisor-codigo` sem bloqueantes (achados corrigidos). `testador-navegador`: site igual nos 3 formatos, claro e escuro, sem erro de console; pelo navegador, `csrf-cookie` 204, login 200, `/api/me` 200, admin 403/200, sem token 419, logout 204 → 401, 6ª tentativa 429. **CI verde** no commit `50f9c7f`.
 
 ### 4. API de dados
 - [ ] `GET /api/dados` (com `?desde=`), `POST /api/salvar` com "o mais novo vence" e escopo por usuário
