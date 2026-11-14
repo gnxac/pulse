@@ -202,10 +202,14 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 - **Pronto quando:** `docker compose up -d` serve o app atual (ainda com IndexedDB) em `localhost:8000`, `/up` responde 200, `php artisan test` passa e o CI fica verde.
 - **Verificado em 14/11/2026:** `docker compose up -d` serve o app em `localhost:8000` (site idêntico ao anterior nos 3 formatos, claro e escuro, sem erro de console); `/up` = 200; `php artisan test` = 4 testes passando, em Postgres `pulse_test`; `node tests/*.test.js` passam; a imagem `prod` sobe sozinha (`config:cache` e `route:cache` na partida, sem PHPUnit, `/.env` bloqueado). **CI verde:** o `testes.yml` rodou no GitHub (PHP + front) e passou nos commits `277a838` e `01fb4d5`. O nginx serve CSS, JSON e manifesto com `charset=utf-8`.
 
-### 2. Tabelas
-- [ ] Migrações de `users`, `questions`, `attempts`, `folders`, `lists`, `runs`, `notes`, `reviews`, `prefs`, `marks`, `media`, `sessions`, `cache`
-- [ ] Gatilhos que impedem `DELETE` em `questions` e `attempts`
+### 2. Tabelas — **concluída em 14/11/2026**
+- [x] Migrações de `users`, `questions`, `attempts`, `folders`, `lists`, `runs`, `notes`, `reviews`, `prefs`, `marks`, `media`, `sessions`, `cache`
+- [x] Gatilhos que impedem `DELETE` em `questions` e `attempts` (e também `TRUNCATE`)
 - **Pronto quando:** `migrate:fresh` e `migrate:rollback` rodam sem erro; teste confirma que `DELETE` em `questions` falha.
+- **Feito além do pedido:** gatilho `BEFORE INSERT OR UPDATE` carimba `recebido_em` com a hora real do servidor (`clock_timestamp()`, microssegundos) em `questions` e nas 8 coleções pessoais, então o `ON CONFLICT DO UPDATE` da etapa 4 não precisa lembrar disso e o `?desde=` enxerga edições e lápides; `role`, `active` e `must_change_password` ficam fora do `Fillable` de `User`; texto livre em `codigo`/`instituicao`/`area` (`text`).
+- **Para a etapa 4:** `questions.ano` é `smallint`; converter para inteiro (ou `null`) antes de gravar, porque o front pode mandar `"2023"` como texto.
+- **Desenvolvimento:** as migrações padrão do Laravel foram trocadas por estas; se o banco `pulse` local for de antes, use `docker compose exec app php artisan migrate:fresh`. O `rollback` apaga as tabelas com os dados e nunca roda em produção.
+- **Verificado:** `migrate:fresh` e `migrate:rollback` sem erro; `php artisan test` = 22 testes (79 asserções) em `pulse_test`, incluindo `DELETE` e `TRUNCATE` em `questions`/`attempts` falhando, chave `(user_id, id)`, FK `RESTRICT` (23503), nome de usuário e papel validados no banco, imagem em `bytea` e `recebido_em` avançando a cada mudança; testes do front passam; o site não mudou.
 
 ### 3. Login e sessão
 - [ ] `POST /login`, `POST /logout`, `GET /api/me`, `POST /api/senha`; Sanctum SPA; middleware `admin`
