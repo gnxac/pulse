@@ -4,6 +4,8 @@ Branch `migracao-laravel`. Marque `[x]` ao concluir cada item. Visual continua o
 
 **Decisões já tomadas (não reabrir):** login próprio só com usuário e senha; sai o login com Google e a sincronização pelo Drive. Só o admin cria contas e redefine senhas; sem cadastro público e sem recuperação por e-mail. Só online: dados no servidor, sem modo offline e sem service worker de dados. O front `www/` (JS puro, `MQ`) continua; o Laravel é a API e serve o site. IndexedDB sai. O Pulse passa a ser só site (sem .exe e sem .apk). Decisões D1–D10 na seção 8.
 
+**Ponto de partida (14/11/2026):** não existem dados no Pulse atual (nem do admin), então **não há migração de dados**. O banco nasce vazio e as questões entram pelo painel de administrador (importar `.json` ou CSV, ou cadastrar uma a uma).
+
 **Regra de publicação (mantida):** por padrão só provas oficiais são publicadas; questões de curso (Estratégia e outros) ficam visíveis só para o admin.
 
 **Toda etapa só termina quando:**
@@ -98,7 +100,7 @@ Depois: telas → MQ.put / MQ.remove → MQ.data → fila de envio → POST /api
 | `GET /api/midia/{id}` | logado, se pode ver a questão da imagem | imagem, com `Cache-Control: private, max-age=31536000, immutable` (id nunca muda); senão 404 |
 | `POST /api/midia` | admin | grava uma imagem (com `question_id`), até 5 MB |
 | `GET/POST/PATCH /api/admin/usuarios` | admin | listar, criar, redefinir senha, desativar/reativar |
-| `GET /api/admin/usuarios/{id}/contagem` | admin | quantos itens a pessoa tem em cada coleção (conferir a migração) |
+| `GET /api/admin/usuarios/{id}/contagem` | admin | quantos itens a pessoa tem em cada coleção (conferência pelo admin) |
 | `POST /api/admin/publicar` | admin | `{ publicar: [ids], despublicar: [ids] }` |
 
 ---
@@ -108,7 +110,7 @@ Depois: telas → MQ.put / MQ.remove → MQ.data → fila de envio → POST /api
 Fica em Configurações › Administrador (onde já estão Cadastrar e Publicar) mais uma tela nova `#/admin/usuarios` (`www/js/admin.js`), no visual do `DESIGN.md`.
 
 - **Usuários:** tabela com nome, usuário, papel, situação (ativa/desativada), último acesso. Ações: **Criar conta** (nome, usuário, papel; o servidor gera uma senha provisória legível, mostrada uma vez para o admin copiar e entregar), **Redefinir senha** (nova senha provisória, encerra as sessões da pessoa), **Desativar/Reativar** (desativar encerra as sessões; os dados ficam). Sem "excluir conta".
-- **Cadastrar, editar, importar (JSON e CSV), gerenciar e remover repetidas:** as telas do `editor.js` continuam iguais, só para o admin; gravam pela mesma fila (`/api/salvar`) e o servidor confere que é admin.
+- **Cadastrar, editar, importar (JSON e CSV), gerenciar e remover repetidas:** as telas do `editor.js` continuam iguais, só para o admin; gravam pela mesma fila (`/api/salvar`) e o servidor confere que é admin. **É por aqui que todas as questões entram no Pulse:** o admin importa os pacotes `.json` ou a planilha CSV (a repetidas são detectadas como hoje, e importar o mesmo arquivo de novo não duplica), confere em Gerenciar e só então publica.
 - **Publicar:** o diálogo atual (`MQ.publishDialog`) continua, com a mesma regra: **instituições oficiais (INEP, Ebserh, ENARE, ENAMED, Revalida) vêm marcadas por padrão; o resto, inclusive cursos como o Estratégia, vem desmarcado** e fica privado do admin. Muda só o fim: em vez de gerar manifesto e arquivo no Drive, chama `POST /api/admin/publicar`, que liga ou desliga `publicada`. Sem versão de banco, sem download: o estudante vê a mudança no próximo carregamento.
 - Proteção extra contra publicar curso por engano: ao confirmar, se houver instituição não oficial marcada, o diálogo lista quais são e pede confirmação.
 - **Imagens das questões:** tabela `media` no PostgreSQL (`bytea`), cada imagem com a `question_id` a que pertence. O `MQ.imgHtml` passa a usar `src="/api/midia/{id}"` em vez da data URL. Resolve o pendente "imagens não são publicadas com o banco": a imagem é servida a quem vê a questão, e só a quem vê. Nunca no disco do servidor.
@@ -116,22 +118,13 @@ Fica em Configurações › Administrador (onde já estão Cadastrar e Publicar)
 
 ---
 
-## 4. Migração dos dados que já existem
+## 4. Entrada dos dados (sem migração)
 
-Só os dados do admin migram (D8/D9): ninguém mais usou o Pulse, nem o site, nem o .exe, nem o .apk. Estudantes começam com conta nova e vazia.
+Não há dados para migrar: o admin não tem dados no Pulse atual e ninguém mais usou o site, o .exe ou o .apk. Todo mundo, o admin inclusive, começa com conta nova e vazia.
 
-O backup completo (`pulse-backup-AAAA-MM-DD.json`) é `MQ.data` + `media`. A etapa 0 acrescenta o marca-texto (`marks`), que hoje fica fora.
-
-**Importar pelo front:** o `MQ.backupRestore` já valida o arquivo, deduplica questões, remapeia letras e respostas e mescla sem perder nada. Com o `mergeData` mandando para a fila tudo o que mudou, restaurar um backup na conta nova = importar para o servidor. IDs são os do arquivo e o servidor faz upsert com "o mais novo vence": importar duas vezes não muda nada. Envio em lotes de 500; se um lote falhar, a fila tenta de novo e o aviso não some até tudo chegar.
-
-**Restaurar como estudante (D3):** entram só os dados pessoais (`attempts`, `folders`, `lists`, `runs`, `notes`, `reviews`, `prefs`, `marks`); `questions` e `media` do arquivo são ignoradas pelo front antes do envio (e o servidor recusaria com 403).
-
-**Ordem da virada:**
-1. Admin exporta o backup completo do site antigo (GitHub Pages), já com a versão da etapa 0.
-2. Admin entra no site novo e restaura o backup. As questões entram com `owner_id` = admin e `publicada = false`.
-3. Admin abre Publicar e confirma a seleção oficial padrão.
-4. Conferência: a tela de restauração mostra o total por coleção do arquivo; comparar com `GET /api/admin/usuarios/{id}/contagem` e olhar Desempenho, Listas, Simulados, Anotações e Revisão.
-5. Só depois disso o site antigo sai do ar (etapa 13).
+- **Questões:** entram pelo painel de administrador (seção 3): importar `.json` ou CSV, ou cadastrar. Chegam como `owner_id` = admin e `publicada = false`; o admin confere e publica (oficiais marcadas por padrão).
+- **Dados pessoais** (`attempts`, `lists` etc.) nascem com o uso. O backup de Configurações › Dados e backup continua existindo para exportar e restaurar, com a regra D3: estudante restaura só dados pessoais.
+- **Sem etapa de conferência de contagens** e sem ensaio de migração.
 
 ---
 
@@ -243,19 +236,18 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 
 ### 7. Imagens
 - [ ] Tabela `media` com `question_id`; `POST /api/midia` só para admin; `GET /api/midia/{id}` só entrega se o usuário pode ver a questão da imagem (admin: todas; estudante: publicada e não removida), senão 404
-- [ ] `MQ.imgHtml` com URL; editor envia imagem nova com a questão; restauração do admin envia as imagens do backup, cada uma com a questão que a usa
+- [ ] `MQ.imgHtml` com URL; editor envia imagem nova com a questão; a importação do admin (e a restauração de um backup do admin) envia as imagens, cada uma com a questão que a usa
 - **Pronto quando:** questão com imagem cadastrada pelo admin aparece para o estudante em outro contexto depois de publicada; teste: estudante não baixa imagem de questão não publicada nem envia imagem (403); imagem não fica em disco no contêiner.
 
 ### 8. Painel do administrador
 - [ ] Tela Usuários: criar, redefinir senha, desativar/reativar
 - [ ] Publicar via `POST /api/admin/publicar`, mantendo oficiais marcadas por padrão e a confirmação extra para instituição não oficial
 - [ ] Contagem por coleção de cada usuário
-- **Pronto quando:** testes de permissão das rotas de admin passam; questão de curso não publicada não aparece para o estudante; questão despublicada some para o estudante e as respostas dele continuam no banco.
+- [ ] Importar questões pelo painel (JSON e CSV) gravando no servidor, só para admin; repetidas detectadas; importar o mesmo arquivo duas vezes não duplica
+- **Pronto quando:** testes de permissão das rotas de admin passam; o admin importa um `.json` e um CSV de questões e elas aparecem em Gerenciar (privadas), e importar de novo não duplica; questão de curso não publicada não aparece para o estudante; questão despublicada some para o estudante e as respostas dele continuam no banco.
 
-### 9. Migração dos dados
-- [ ] Ensaio no ambiente local só com o backup do admin, exportado do site antigo (D10; o arquivo fica fora do repositório)
-- [ ] A restauração mostra o total por coleção do arquivo; conferir com a contagem do servidor
-- **Pronto quando:** as contagens batem coleção por coleção, imagens e marcações incluídas; importar o mesmo arquivo de novo não muda nenhuma contagem; Desempenho, Listas, Simulados, Anotações e Revisão mostram os mesmos números que o site antigo mostrava com o mesmo backup.
+### 9. ~~Migração dos dados~~ — não necessária: sem dados para migrar
+- [x] Não necessária: sem dados para migrar (nem do admin). As questões entram pelo painel de administrador na etapa 8.
 
 ### 10. Limpeza do legado e documentos
 - [ ] Apagar Electron, Capacitor, `gerar-instaladores.yml`, `extras.js`, `seed.js` e as questões de exemplo (D4), ramos nativos, dependências do `package.json`
@@ -273,17 +265,14 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 - **Pronto quando:** existem dumps de 2 dias seguidos no bucket e um deles foi restaurado no PC com as contagens iguais às do servidor.
 
 ### 13. Virada
-- [ ] Admin exporta o backup do site antigo, restaura no site novo e confere (seção 4)
-- [ ] Logo depois da conferência: o GitHub Pages vira só um redirecionamento para o endereço novo + um `sw.js` que se cancela; apagar `publicar-site.yml`
-- **Pronto quando:** o admin conferiu os dados no site novo e o endereço antigo redireciona para o novo.
+- [ ] Com o site novo no ar e o admin conseguindo entrar: o GitHub Pages vira só um redirecionamento para o endereço novo + um `sw.js` que se cancela; apagar `publicar-site.yml`
+- **Pronto quando:** o endereço antigo redireciona para o novo. Não há conferência de dados: o site antigo pode sair do ar assim que o novo estiver no ar.
 
 ---
 
 ## 8. Riscos, custos e decisões
 
 ### Riscos
-- **Perda de dados na virada:** os dados do admin estão no IndexedDB do endereço `github.io`, que o site novo não lê. Mitigação: ensaio da etapa 9, contagem por coleção, e o site antigo só sai do ar depois da conferência.
-- **Marca-texto:** só migra se o backup for exportado com a versão da etapa 0.
 - **Só online:** sem internet o app não abre e respostas não salvam. A fila em memória segura uma queda curta com a aba aberta; fechar a aba sem rede perde o que não foi enviado (o aviso de `beforeunload` tenta impedir).
 - **Latência:** servidor nos EUA; cada carregamento leva ~0,3–1 s a mais que hoje. Gravações vão em lote e não travam a tela.
 - **Tamanho do `GET /api/dados`:** devolve tudo de uma vez, como o IndexedDB fazia. Com dezenas de milhares de respostas, chega a alguns MB (gzip reduz bem). Se ficar lento, paginar `attempts`; não antes.
@@ -316,7 +305,7 @@ Começa no mínimo (D1); subir web e banco quando o uso pedir. Domínio próprio
 - **D5. Sessão:** 30 dias, renovando a cada uso.
 - **D6. Nome de usuário:** livre, só minúsculas, números, ponto e hífen.
 - **D7. Backup externo:** Cloudflare R2.
-- **D8 e D9. Quem migra:** ninguém além do admin usou o Pulse (nem site, nem .exe, nem .apk). O Pulse passa a ser só site. Só os dados do admin migram; sem estudantes para migrar e sem aviso de 30 dias. Na etapa 13, o site antigo sai do ar (redirecionamento + `sw.js` que se cancela) logo depois que o admin conferir os dados no site novo.
-- **D10. Ensaio da etapa 9:** só com o backup do admin, exportado do site antigo.
+- **D8 e D9. Quem migra:** ninguém. Não há dados no Pulse atual (nem do admin; ninguém usou site, .exe ou .apk). O Pulse passa a ser só site, sem estudantes para migrar e sem aviso de 30 dias. Na etapa 13, o site antigo sai do ar (redirecionamento + `sw.js` que se cancela) assim que o novo estiver no ar.
+- **D10. Ensaio de migração:** cancelado (14/11/2026), pois não há dados para migrar. As questões entram pelo painel de administrador (importar `.json`/CSV).
 
 Fontes de preço e backup: https://render.com/pricing e https://render.com/docs/postgresql-backups (consultadas em 13/11/2026).
