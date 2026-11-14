@@ -195,12 +195,12 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 - [x] Restaurar um backup com `marks` no app atual devolve o marca-texto (`MQ.marksFromBackup`, só trechos válidos; a marcação local da questão fica)
 - **Pronto quando:** um backup exportado tem `marks` com as marcações de 2 questões, e `node tests/mesclagem.test.js` passa.
 
-### 1. Esqueleto do Laravel, Docker e CI
+### 1. Esqueleto do Laravel, Docker e CI — **concluída em 14/11/2026**
 - [x] Laravel 13 na raiz, pasta pública = `www/`, `www/index.php`, rota `/up`
 - [x] `Dockerfile` (estágios `dev` e `prod`), `docker-compose.yml`, `.dockerignore`, `.env.example`
 - [x] Workflow `testes.yml` (PHP + front)
 - **Pronto quando:** `docker compose up -d` serve o app atual (ainda com IndexedDB) em `localhost:8000`, `/up` responde 200, `php artisan test` passa e o CI fica verde.
-- **Verificado em 14/11/2026:** `docker compose up -d` serve o app em `localhost:8000` (site idêntico ao anterior nos 3 formatos, claro e escuro, sem erro de console); `/up` = 200; `php artisan test` = 4 testes passando, em Postgres `pulse_test`; `node tests/*.test.js` passam; a imagem `prod` sobe sozinha (`config:cache` e `route:cache` na partida, sem PHPUnit, `/.env` bloqueado). **CI verde:** o `testes.yml` rodou no GitHub no commit `277a838` (PHP + front) e passou.
+- **Verificado em 14/11/2026:** `docker compose up -d` serve o app em `localhost:8000` (site idêntico ao anterior nos 3 formatos, claro e escuro, sem erro de console); `/up` = 200; `php artisan test` = 4 testes passando, em Postgres `pulse_test`; `node tests/*.test.js` passam; a imagem `prod` sobe sozinha (`config:cache` e `route:cache` na partida, sem PHPUnit, `/.env` bloqueado). **CI verde:** o `testes.yml` rodou no GitHub (PHP + front) e passou nos commits `277a838` e `01fb4d5`. O nginx serve CSS, JSON e manifesto com `charset=utf-8`.
 
 ### 2. Tabelas
 - [ ] Migrações de `users`, `questions`, `attempts`, `folders`, `lists`, `runs`, `notes`, `reviews`, `prefs`, `marks`, `media`, `sessions`, `cache`
