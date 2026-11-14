@@ -45,6 +45,23 @@ class CriarAdminTest extends TestCase
         $this->assertSame(0, User::count());
     }
 
+    public function test_recusa_senha_acima_de_72_bytes_com_mensagem_clara(): void
+    {
+        // 37 letras com acento = 74 bytes: passaria num max:72 por caracteres, mas o bcrypt cortaria.
+        $this->criarAdmin('guilherme', str_repeat('á', 37))->expectsOutput(User::SENHA_LONGA)->assertExitCode(1);
+        $this->criarAdmin('guilherme', str_repeat('a', 73))->expectsOutput(User::SENHA_LONGA)->assertExitCode(1);
+        $this->assertSame(0, User::count());
+
+        $this->criarAdmin('guilherme', str_repeat('á', 36))->assertExitCode(0); // 72 bytes: o máximo
+    }
+
+    public function test_criar_conta_com_senha_acima_de_72_bytes_falha_em_vez_de_cortar(): void
+    {
+        // Qualquer caminho que crie conta (seeder, painel do admin) passa pelo Hash::make, que recusa.
+        $this->expectException(\InvalidArgumentException::class);
+        User::factory()->create(['password' => str_repeat('a', 73)]);
+    }
+
     public function test_seeder_cria_contas_de_teste_com_senha_aleatoria(): void
     {
         Artisan::call('db:seed', ['--class' => DatabaseSeeder::class]);

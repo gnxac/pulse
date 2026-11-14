@@ -4,6 +4,9 @@
 FROM serversideup/php:8.4-fpm-nginx AS base
 # A pasta pública é www/ (o site) e não public/.
 ENV NGINX_WEBROOT=/var/www/html/www
+# /api/salvar e /api/midia aceitam até 5 MB (o Laravel responde 413 com a mensagem); nginx e PHP deixam passar
+# um pouco mais para a mensagem vir do Laravel. Acima de 6 MB o nginx responde (docker/nginx/pulse.conf).
+ENV NGINX_CLIENT_MAX_BODY_SIZE=6M     PHP_POST_MAX_SIZE=6M     PHP_UPLOAD_MAX_FILE_SIZE=6M
 WORKDIR /var/www/html
 
 COPY docker/nginx/pulse.conf /etc/nginx/server-opts.d/pulse.conf

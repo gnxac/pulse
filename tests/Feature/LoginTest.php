@@ -217,6 +217,21 @@ class LoginTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('password');
     }
 
+    public function test_nova_senha_ate_72_bytes(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        foreach ([str_repeat('á', 37), str_repeat('a', 73)] as $longa) { // 74 e 73 bytes
+            $this->postJson('/api/senha', ['current_password' => self::SENHA, 'password' => $longa])
+                ->assertStatus(422)->assertJsonPath('errors.password.0', User::SENHA_LONGA);
+        }
+        $this->assertTrue(Hash::check(self::SENHA, $user->fresh()->password));
+
+        $this->postJson('/api/senha', ['current_password' => self::SENHA, 'password' => str_repeat('á', 36)])->assertNoContent();
+        $this->assertTrue(Hash::check(str_repeat('á', 36), $user->fresh()->password));
+    }
+
     public function test_senha_provisoria_so_deixa_ler_me_e_trocar_a_senha(): void
     {
         $admin = User::factory()->admin()->create(['must_change_password' => true]);

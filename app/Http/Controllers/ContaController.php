@@ -87,7 +87,7 @@ class ContaController extends Controller
     {
         $dados = $request->validate([
             'current_password' => ['required', 'string', 'current_password:web'],
-            'password' => ['required', 'string', 'min:10', 'max:72', 'different:current_password'],
+            'password' => [...User::regrasSenha(), 'different:current_password'],
         ]);
 
         $user = $request->user();

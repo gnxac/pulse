@@ -104,4 +104,20 @@ assert.strictEqual(MQ.local.marks.q4, undefined);
 assert.deepStrictEqual(Object.keys(MQ.local.marks.q5), ['stem']);
 assert.deepStrictEqual(MQ.local.marks.q5.stem, [[0, 2, 'red'], [5, 8, 'green']]); // em ordem, sem sobreposição
 
+// 10. A saída de GET /api/dados (gravada pelo tests/Feature/DadosTest.php) entra inteira pelo mergeData
+fresh();
+const api = Object.assign(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/api-dados.json'), 'utf8')), { ate: '2026-11-14T13:00:00.000000Z' });
+const itens = Object.keys(api).filter(c => typeof api[c] === 'object').reduce((n, c) => n + Object.keys(api[c]).length, 0);
+assert.strictEqual(MQ.mergeData(api), itens);
+assert.strictEqual(MQ.data.ate, undefined); // o cursor (texto) não vira coleção
+assert.strictEqual(MQ.get('questions', 'q1').enunciado, 'Qual?');
+assert.strictEqual(MQ.get('questions', 'q2'), null); // lápide
+assert.strictEqual(MQ.data.questions.q2.dupOf, 'q1');
+assert.strictEqual(MQ.get('lists', 'l2'), null);
+assert.deepStrictEqual(MQ.get('lists', 'l1').qids, ['q1', 'q2']);
+assert.ok(MQ.get('runs', 'r1').answers && !Array.isArray(MQ.get('runs', 'r1').answers)); // {} continua objeto
+assert.deepStrictEqual(MQ.get('marks', 'q1').m.stem, [[0, 5, 'yellow']]);
+assert.strictEqual(MQ.attemptsByQ().q1.length, 1);
+assert.strictEqual(MQ.mergeData(api), 0); // carregar de novo não muda nada
+
 console.log('mesclagem: ok');

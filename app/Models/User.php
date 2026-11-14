@@ -23,6 +23,18 @@ class User extends Authenticatable
     /** D6: só minúsculas, números, ponto e hífen. O D evita que "nome\n" passe. Igual ao CHECK do banco. */
     public const FORMATO_USERNAME = '/^[a-z0-9.-]+$/D';
 
+    public const SENHA_LONGA = 'A senha pode ter no máximo 72 bytes (letras com acento e símbolos contam como 2 a 4).';
+
+    /** Regras de toda senha nova (criar admin, criar conta, trocar senha). O bcrypt ignora o que passa de 72 bytes. */
+    public static function regrasSenha(): array
+    {
+        return ['required', 'string', 'min:10', function (string $campo, mixed $valor, \Closure $falha) {
+            if (is_string($valor) && strlen($valor) > 72) {
+                $falha(self::SENHA_LONGA);
+            }
+        }];
+    }
+
     protected function casts(): array
     {
         return [

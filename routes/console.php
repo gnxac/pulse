@@ -19,7 +19,7 @@ Artisan::command('pulse:criar-admin', function () {
         'username' => ['required', 'max:40', 'regex:'.User::FORMATO_USERNAME, Rule::unique('users', 'username')],
         'name' => ['required', 'max:255'],
         'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
-        'password' => ['required', 'min:10', 'max:72', 'confirmed'],
+        'password' => [...User::regrasSenha(), 'confirmed'],
     ]);
     if ($validacao->fails()) {
         foreach ($validacao->errors()->all() as $erro) {

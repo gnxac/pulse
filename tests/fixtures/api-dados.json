@@ -1,0 +1,140 @@
+{
+    "runs": {
+        "r1": {
+            "id": "r1",
+            "qids": [
+                "q1"
+            ],
+            "flags": [],
+            "listId": "l1",
+            "status": "andamento",
+            "answers": {},
+            "createdAt": 40,
+            "startedAt": 40,
+            "updatedAt": 40
+        }
+    },
+    "lists": {
+        "l1": {
+            "id": "l1",
+            "name": "Revisão",
+            "qids": [
+                "q1",
+                "q2"
+            ],
+            "folderId": "f1",
+            "createdAt": 31,
+            "updatedAt": 31
+        },
+        "l2": {
+            "id": "l2",
+            "deleted": true,
+            "createdAt": 31,
+            "updatedAt": 32
+        }
+    },
+    "marks": {
+        "q1": {
+            "m": {
+                "stem": [
+                    [
+                        0,
+                        5,
+                        "yellow"
+                    ]
+                ]
+            },
+            "id": "q1",
+            "qid": "q1",
+            "createdAt": 70,
+            "updatedAt": 70
+        }
+    },
+    "notes": {
+        "q1": {
+            "id": "q1",
+            "text": "Lembrar: ação → reação",
+            "createdAt": 50,
+            "updatedAt": 50
+        }
+    },
+    "prefs": {
+        "meta": {
+            "id": "meta",
+            "daily": 40,
+            "createdAt": 60,
+            "updatedAt": 60
+        }
+    },
+    "counter": 0,
+    "folders": {
+        "f1": {
+            "id": "f1",
+            "name": "Cardio",
+            "createdAt": 30,
+            "updatedAt": 30
+        }
+    },
+    "reviews": {
+        "q1": {
+            "id": "q1",
+            "box": 1,
+            "due": 86400020,
+            "qid": "q1",
+            "lastAt": 20,
+            "createdAt": 20,
+            "updatedAt": 20
+        }
+    },
+    "version": 1,
+    "attempts": {
+        "a1": {
+            "id": "a1",
+            "ts": 20,
+            "ctx": "banco",
+            "qid": "q1",
+            "choice": "A",
+            "correct": true,
+            "timeSec": 12.5,
+            "createdAt": 20,
+            "updatedAt": 20
+        },
+        "a2": {
+            "id": "a2",
+            "ts": 21,
+            "ctx": "banco",
+            "qid": "q2",
+            "choice": "B",
+            "correct": false,
+            "createdAt": 21,
+            "updatedAt": 21
+        }
+    },
+    "questions": {
+        "q1": {
+            "id": "q1",
+            "ano": "2023",
+            "codigo": "R1-00001",
+            "gabarito": "A",
+            "createdAt": 10,
+            "enunciado": "Qual?",
+            "updatedAt": 10,
+            "instituicao": "ENARE",
+            "alternativas": {
+                "A": "a",
+                "B": "b"
+            }
+        },
+        "q2": {
+            "id": "q2",
+            "dupOf": "q1",
+            "dupMap": {
+                "A": "A",
+                "B": "B"
+            },
+            "deleted": true,
+            "createdAt": 5,
+            "updatedAt": 11
+        }
+    }
+}
