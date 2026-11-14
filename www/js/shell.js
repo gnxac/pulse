@@ -9,7 +9,7 @@
   const typing = el => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
   document.addEventListener('keydown', e => {
-    if (e.defaultPrevented || e.altKey) return;
+    if (e.defaultPrevented || e.altKey || document.body.classList.contains('logged-out')) return; // tela de entrada aberta: sem atalhos
     const mod = e.ctrlKey || e.metaKey;
     if (mod && !e.shiftKey && /^[1-6]$/.test(e.key)) {
       if (document.querySelector('.modal-back') || typing(e.target) || inSim()) return; // não perde texto digitado

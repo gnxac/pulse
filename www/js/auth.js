@@ -1,174 +1,260 @@
-/* Pulse — login com Google no site (Google Identity Services). Sem servidor e sem chave secreta:
-   o navegador recebe um token de acesso de curta duração para a pasta oculta do Drive de quem entrou.
-   Nos apps nativos (Windows/Android) continua valendo o fluxo antigo de sync.js. */
+/* Pulse — entrar com usuário e senha (conta criada pelo administrador), troca da senha provisória e sair.
+   O servidor guarda a sessão em cookie (Laravel Sanctum); aqui só há as telas e as chamadas (PLANO-LARAVEL.md, etapa 6). */
 (function (MQ) {
   'use strict';
   const { esc } = MQ;
+  const A = MQ.auth = {};
 
-  const SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file openid email profile';
-  const native = () => !!(window.mqNative || (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()));
-  const A = MQ.auth = { web: !native() };
-  A.clientId = () => ((window.MQ_CONFIG || {}).googleWebClientId || '').trim();
-  A.configured = () => !!A.clientId();
-  /* Conta que entrou neste navegador (guardada no aparelho: o site abre mesmo sem internet) */
-  A.user = () => { const s = MQ.local.sync || {}; return s.webLogin && s.email ? { email: s.email, name: s.name || '', picture: s.picture || '' } : null; };
-
-  /* Token de acesso: dura cerca de 1 h; fica só na aba (sessionStorage), nunca no armazenamento permanente */
-  let tok = null, tokExp = 0;
-  try { const t = JSON.parse(sessionStorage.getItem('pulse-token') || 'null'); if (t && t.e > Date.now()) { tok = t.t; tokExp = t.e; } } catch (e) { /* sem sessionStorage */ }
-  function keep(r) {
-    tok = r.access_token; tokExp = Date.now() + (r.expires_in || 3600) * 1000;
-    try { sessionStorage.setItem('pulse-token', JSON.stringify({ t: tok, e: tokExp })); } catch (e) { /* ok */ }
-  }
-
-  /* A biblioteca do Google carrega com async; espera até 10 s (sem internet ela nunca chega) */
-  function gis() {
-    return new Promise((resolve, reject) => {
-      let n = 0;
-      (function wait() {
-        const g = window.google && window.google.accounts && window.google.accounts.oauth2;
-        if (g) return resolve(g);
-        if (++n > 100) return reject(new Error(navigator.onLine ? 'gis' : 'offline')); // online e nada: o script foi bloqueado
-        setTimeout(wait, 100);
-      })();
-    });
-  }
-  function request(prompt, hint) {
-    return gis().then(oauth2 => new Promise((resolve, reject) => {
-      // popup que nunca responde não pode prender o botão; a renovação em silêncio é bloqueada logo ou não vem
-      const t = setTimeout(() => reject(new Error('timeout')), prompt === '' ? 15000 : 120000);
-      const end = (fn, v) => { clearTimeout(t); fn(v); };
-      const c = oauth2.initTokenClient({
-        client_id: A.clientId(), scope: SCOPE,
-        callback: r => (r.error ? end(reject, new Error(r.error)) : end(resolve, r)),
-        error_callback: e => end(reject, new Error((e && e.type) || 'erro'))
-      });
-      c.requestAccessToken({ prompt, hint: hint || undefined });
-    }));
-  }
-
-  /* Mensagem em português, curta e com a ação, para cada jeito de o login falhar */
-  A.explain = function (e) {
-    const m = String((e && e.message) || e);
-    if (/popup_closed|access_denied/.test(m)) return 'Login cancelado. Toque em "Entrar com Google" para tentar de novo.';
-    if (/popup_failed/.test(m)) return 'O navegador bloqueou a janela do Google. Libere pop-ups para este site e tente de novo.';
-    if (m === 'scope') return 'Para guardar seus dados, permita o acesso à pasta do app no Drive e tente de novo.';
-    if (m === 'gis') return 'O login do Google não carregou. Se você usa um bloqueador de anúncios, libere este site e recarregue a página.';
-    if (m === 'timeout') return 'O Google não respondeu. Feche a janela do Google, se ela ainda estiver aberta, e tente de novo.';
-    if (m === 'userinfo') return 'O Google não informou o seu e-mail. Tente de novo.';
-    if (!navigator.onLine || m === 'offline' || /failed to fetch|networkerror|load failed/i.test(m)) return 'Sem conexão com o Google. Conecte-se à internet e tente de novo.';
-    return 'Não foi possível entrar. Tente de novo; se continuar, recarregue a página.';
-  };
-
-  /* Token para a sincronização; renova em silêncio quando vence (se o navegador bloquear, pede para reconectar) */
-  let renewing = null, needRelogin = false;
-  /* O Google recusou o token (401): descarta e pede reconexão em vez de repetir o mesmo token até vencer */
-  A.expire = function () { tok = null; tokExp = 0; needRelogin = true; try { sessionStorage.removeItem('pulse-token'); } catch (e) { /* ok */ } };
-  A.getToken = async function () {
-    if (tok && tokExp - 60000 > Date.now()) return tok;
-    const u = A.user();
-    if (!u) throw MQ.problem('auth');
-    if (needRelogin) throw MQ.problem('auth'); // sem gesto do usuário o navegador bloqueia; não insiste
-    renewing = renewing || request('', u.email).then(keep).finally(() => { renewing = null; });
-    try { await renewing; return tok; } catch (e) {
-      if (!navigator.onLine || /^(offline|gis)$/.test(e.message)) throw MQ.problem(navigator.onLine ? 'net' : 'offline'); // não é a sessão: não trava a renovação
-      needRelogin = true; throw MQ.problem('auth');
-    }
-  };
-
-  /* Apaga os dados deste navegador (usado quando outra conta entra ou ao sair e apagar) */
-  async function wipe() {
-    const keepSync = { owner: '' };
-    await MQ.resetData();
-    MQ.local.sync = keepSync;
-    await MQ.saveLocal();
-  }
-
-  /* Abre a janela do Google; precisa vir de um toque/clique. Devolve true se entrou. */
-  A.signIn = async function () {
-    const r = await request('select_account');
-    const g = window.google.accounts.oauth2;
-    if (g.hasGrantedAllScopes && !g.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/drive.appdata')) throw new Error('scope');
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + r.access_token } });
-    const u = res.ok ? await res.json() : {};
-    if (!u.email) throw new Error('userinfo');
-    const email = u.email.toLowerCase();
-    const s = MQ.local.sync || (MQ.local.sync = {});
-    if (s.owner && s.owner !== email) {
-      const ok = await MQ.confirm('Outra conta neste navegador', 'Este navegador guarda dados de ' + s.owner + '. Para entrar como ' + email + ', os dados locais serão removidos daqui (continuam no Google Drive de ' + s.owner + ', se estiverem sincronizados). Continuar?', 'Remover e entrar', true);
-      if (!ok) return false;
-      await wipe();
-    }
-    const sy = MQ.local.sync || (MQ.local.sync = {});
-    Object.assign(sy, { webLogin: true, localOnly: false, email: u.email, name: u.name || '', picture: u.picture || '', owner: email });
-    keep(r); needRelogin = false;
-    await MQ.saveLocal();
-    return true;
-  };
-
-  /* Sai deste navegador. erase = também apaga os dados daqui (computador compartilhado). */
-  A.signOut = async function (erase) {
-    const ok = await MQ.confirm(erase ? 'Sair e apagar os dados daqui' : 'Sair deste navegador',
-      erase ? 'Seus dados locais serão apagados deste navegador. Tentamos sincronizar antes; o que não chegar ao Google Drive (por exemplo, se estiver sem internet) será perdido.' : 'Você precisará entrar de novo. Seus dados continuam aqui e no seu Google Drive.', erase ? 'Sair e apagar' : 'Sair', !!erase);
-    if (!ok) return;
-    if (erase && A.user() && !(navigator.onLine && await MQ.syncNow())) { // envia o que falta antes de apagar; se não deu, avisa em vez de perder em silêncio
-      const go = await MQ.confirm('Seus dados não foram enviados', 'Não foi possível enviar seus dados ao Google Drive agora. Se apagar, o que não foi sincronizado se perde. Cancele para exportar um backup em Configurações › Dados e backup.', 'Apagar mesmo assim', true);
-      if (!go) return;
-    }
-    try { if (tok && window.google && window.google.accounts) window.google.accounts.oauth2.revoke(tok); } catch (e) { /* ok */ }
-    try { sessionStorage.removeItem('pulse-token'); } catch (e) { /* ok */ }
-    tok = null; tokExp = 0;
-    if (erase) await wipe();
-    else { const s = MQ.local.sync; s.webLogin = false; s.email = ''; s.name = ''; s.picture = ''; await MQ.saveLocal(); }
-    location.reload();
-  };
-
-  /* ---------- Tela de login ---------- */
-  const G = '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
+  A.PRIVACY = 'O Pulse guarda no servidor a sua conta, as respostas, listas, simulados, anotações, revisões, marcações e a meta diária. Neste aparelho ficam só as preferências (tema, tamanho do texto, filtros) e o ponto onde você parou. Você pode exportar tudo em Configurações › Dados e backup.';
+  const FORMATO = /^[a-z0-9.-]+$/;
+  const SEM_REDE = 'Sem conexão com o servidor. Confira a internet e tente de novo.';
   const MARK = '<svg width="44" height="44" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#4338A8"/><path d="M12 34h8l4-8 5 14 22-22" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  function showLogin(done) {
+  A.isAdmin = me => !!me && me.role === 'admin';
+  A.roleLabel = me => (A.isAdmin(me) ? 'Administrador' : 'Estudante');
+
+  /* Quem está logado; null se não houver sessão. Qualquer outra resposta é erro de verdade. */
+  async function fetchMe() {
+    const res = await MQ.api('GET', '/api/me');
+    if (res.status === 401) return null;
+    if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+    return res.json();
+  }
+  async function jsonOf(res) { try { return await res.json(); } catch (e) { return {}; } }
+  const wait = res => {
+    const n = parseInt(res.headers.get('Retry-After'), 10);
+    return n > 0 ? n : 60;
+  };
+
+  /* Outra pessoa neste navegador: o "continuar de onde parei" e o progresso das listas não valem para ela */
+  A.adopt = function (me) {
+    if (MQ.local.owner != null && MQ.local.owner !== me.id) ['last', 'progress', 'lastBackup'].forEach(k => { delete MQ.local[k]; });
+    MQ.local.owner = me.id;
+    MQ.saveLocal();
+  };
+
+  /* ---------- Estrutura comum das telas de entrada ---------- */
+  function screen(cardHtml) {
     document.body.classList.add('logged-out');
+    const toast = document.getElementById('toast'); // o aviso "Entrar" já cumpriu o papel e cobriria o formulário
+    if (toast) toast.className = 'toast';
     const el = document.createElement('main');
     el.id = 'login';
-    const configured = A.configured();
     el.innerHTML =
       '<section class="lg-brand" aria-hidden="true"><div class="lg-mark">' + MARK + '<b>Pulse</b></div>' +
       '<h2>Questões de residência no seu ritmo</h2>' +
-      '<ul><li>Provas oficiais, filtros por assunto, banca e ano</li><li>Revisão espaçada dos seus erros e caderno de erros</li><li>Simulados cronometrados e desempenho por tema</li><li>Funciona no computador, no tablet e no celular, e até sem internet</li></ul></section>' +
-      '<section class="lg-card"><div class="lg-mark sm">' + MARK + '<b>Pulse</b></div>' +
-      '<h1>Entrar</h1><p class="lg-sub">Suas questões, respostas e listas ficam com você, sem outra senha.</p>' +
-      '<ul class="lg-points"><li>Revisão dos seus erros no dia certo</li><li>Simulados cronometrados e desempenho por tema</li><li>Funciona até sem internet</li></ul>' +
-      (configured
-        ? '<p class="lg-fine">Pedimos acesso só à pasta oculta do app no seu Drive e ao seu e-mail, para guardar e sincronizar os seus dados.</p><button class="lg-google" id="lg-go">' + G + '<span>Entrar com Google</span></button>'
-        : '<p class="lg-warn" role="status">Entrar com Google ainda não está disponível neste endereço. Você pode usar o Pulse só neste navegador, sem sincronizar.</p><button class="lg-google primary" id="lg-local">Continuar neste navegador</button><p class="lg-fine">Se você limpar os dados do navegador, perde o progresso. Guarde uma cópia em <b>Configurações › Dados e backup</b>.</p>') +
-      '<p class="lg-err" id="lg-err" role="alert" hidden></p></section>';
+      '<ul><li>Provas oficiais, filtros por assunto, banca e ano</li><li>Revisão espaçada dos seus erros e caderno de erros</li><li>Simulados cronometrados e desempenho por tema</li><li>Funciona no computador, no tablet e no celular</li></ul></section>' +
+      '<section class="lg-card"><div class="lg-mark sm">' + MARK + '<b>Pulse</b></div>' + cardHtml + '</section>';
     document.body.appendChild(el);
-    const err = msg => { const e = el.querySelector('#lg-err'); e.textContent = msg; e.hidden = !msg; if (msg) e.scrollIntoView({ block: 'nearest' }); };
-    const finish = () => { el.remove(); document.body.classList.remove('logged-out'); done(); };
-    const go = el.querySelector('#lg-go');
-    if (go) {
-      go.onclick = async () => {
-        if (go.getAttribute('aria-disabled')) return;
-        err('');
-        if (!navigator.onLine) { err(A.explain(new Error('offline'))); return; } // não espera 10 s para dizer o óbvio
-        const label = go.querySelector('span'), was = label.textContent;
-        go.setAttribute('aria-disabled', 'true'); go.setAttribute('aria-busy', 'true'); label.textContent = 'Abrindo o Google…'; // aria-disabled mantém o foco no botão
-        try { if (await A.signIn()) return finish(); }
-        catch (e) { console.error(e); err(A.explain(e)); }
-        go.removeAttribute('aria-disabled'); go.removeAttribute('aria-busy'); label.textContent = was;
-      };
-    }
-    const local = el.querySelector('#lg-local');
-    if (local) { local.onclick = async () => { (MQ.local.sync || (MQ.local.sync = {})).localOnly = true; await MQ.saveLocal(); finish(); }; }
+    return el;
+  }
+  function leave(el) {
+    el.remove(); // quem abriu a tela devolve o app (init ou resume): entre duas telas seguidas o app não pisca
+  }
+  /* Botão "Voltar ao app" das telas abertas com o app aberto: não prende quem esqueceu a senha com alterações não salvas */
+  const backBtn = '<button type="button" class="btn ghost" id="lg-back">Voltar ao app</button>';
+  function bindBack(el, resolve) { const b = el.querySelector('#lg-back'); if (b) b.onclick = () => { leave(el); resolve(null); }; }
+  const showOn = (el, msg) => { el.textContent = msg; el.hidden = !msg; if (msg) el.scrollIntoView({ block: 'nearest' }); };
+  /* Foco no primeiro campo só com mouse e teclado; no toque o teclado cobriria a tela */
+  const focusFirst = (el, sel, force) => { if (force || matchMedia('(pointer: fine)').matches) setTimeout(() => { const f = el.querySelector(sel); if (f) f.focus(); }, 30); };
+
+  const showToggle = '<label class="lg-show"><input type="checkbox" data-show> Mostrar senha</label>';
+  function bindShow(root) {
+    const t = root.querySelector('[data-show]');
+    if (t) t.onchange = () => root.querySelectorAll('input[data-pw]').forEach(i => { i.type = t.checked ? 'text' : 'password'; });
   }
 
-  /* Resolve quando o app pode abrir: nos apps nativos sempre; no site, com conta lembrada neste navegador
-     (funciona sem internet), ou, enquanto o login não está configurado, com "continuar sem conta". */
-  A.gate = function () {
-    if (!A.web) return Promise.resolve();
-    const s = MQ.local.sync || {};
-    if (A.user() || (!A.configured() && s.localOnly)) return Promise.resolve();
-    return new Promise(resolve => showLogin(resolve));
+  /* Botão de enviar ocupado ou esperando o tempo do bloqueio */
+  const off = btn => btn.getAttribute('aria-disabled') === 'true';
+  function busy(btn, on, label) {
+    if (on) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-busy', 'true'); } else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-busy'); }
+    btn.textContent = label;
+  }
+  /* Bloqueio por tentativas: o aviso fixo fica no alerta; a contagem aparece no botão (sem repetir o alerta a cada segundo) */
+  function countdown(btn, errEl, seconds, label) {
+    showOn(errEl, 'Muitas tentativas. Tente de novo em ' + seconds + ' segundos.');
+    return new Promise(resolve => {
+      let n = seconds;
+      const tick = () => {
+        if (n <= 0) { showOn(errEl, ''); busy(btn, false, label); return resolve(); }
+        btn.setAttribute('aria-disabled', 'true'); btn.removeAttribute('aria-busy'); btn.textContent = 'Aguarde ' + n + ' s'; n--;
+        setTimeout(tick, 1000);
+      };
+      tick();
+    });
+  }
+
+  /* ---------- Entrar ---------- */
+  function screenLogin(opt) {
+    opt = opt || {};
+    return new Promise(resolve => {
+      const el = screen(
+        '<h1>Entrar</h1><p class="lg-sub">' + (opt.notice ? esc(opt.notice) : 'Use o usuário e a senha que o administrador criou para você.') + '</p>' +
+        '<form class="lg-form" id="lg-form" novalidate>' +
+        '<label class="field"><span>Usuário</span><input type="text" id="lg-user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required></label>' +
+        '<label class="field"><span>Senha</span><input type="password" id="lg-pass" name="password" autocomplete="current-password" data-pw maxlength="200" required></label>' + showToggle +
+        '<p class="lg-err" id="lg-err" role="alert" hidden></p>' +
+        '<button type="submit" class="btn primary big" id="lg-go">Entrar</button></form>' + (opt.canCancel ? backBtn : '') +
+        '<p class="lg-fine">Esqueceu a senha? Peça ao administrador para criar uma nova.</p>' +
+        '<p class="lg-fine lg-privacy"><b>Seus dados.</b> ' + esc(A.PRIVACY) + '</p>');
+      const form = el.querySelector('#lg-form'), err = el.querySelector('#lg-err'), go = el.querySelector('#lg-go');
+      bindShow(el); bindBack(el, resolve);
+      form.onsubmit = async e => {
+        e.preventDefault();
+        if (off(go)) return;
+        const username = el.querySelector('#lg-user').value.trim().toLowerCase(), password = el.querySelector('#lg-pass').value;
+        showOn(err, '');
+        if (!username || !password) { showOn(err, 'Digite o usuário e a senha.'); return; }
+        if (!FORMATO.test(username)) { showOn(err, 'O usuário só tem letras minúsculas, números, ponto e hífen.'); return; }
+        busy(go, true, 'Entrando…');
+        try {
+          const res = await MQ.api('POST', '/login', JSON.stringify({ username, password }));
+          if (res.ok) { const me = await jsonOf(res); if (me.id) { leave(el); return resolve(me); } }
+          if (res.status === 429) { await countdown(go, err, wait(res), 'Entrar'); return; }
+          const j = res.ok ? {} : await jsonOf(res);
+          // Mesma mensagem para senha errada, usuário que não existe e conta desativada (não revela quem tem conta)
+          showOn(err, res.ok ? 'O servidor respondeu algo inesperado. Tente de novo em instantes.' : res.status === 422 ? ((j.errors && j.errors.username && j.errors.username[0]) || 'Usuário ou senha incorretos.') : 'O servidor não conseguiu entrar agora. Tente de novo em instantes.');
+        } catch (x) {
+          console.error(x);
+          showOn(err, SEM_REDE);
+        }
+        busy(go, false, 'Entrar');
+        el.querySelector('#lg-pass').select();
+      };
+      focusFirst(el, '#lg-user', opt.canCancel);
+    });
+  }
+
+  /* ---------- Trocar a senha (obrigatória com senha provisória; opcional em Conta) ---------- */
+  function pwFields(forced) {
+    return '<label class="field"><span>' + (forced ? 'Senha provisória (a que você recebeu)' : 'Senha atual') + '</span><input type="password" id="pw-cur" autocomplete="current-password" data-pw maxlength="200" required></label>' +
+      '<label class="field"><span>Senha nova</span><input type="password" id="pw-new" autocomplete="new-password" data-pw maxlength="200" aria-describedby="pw-hint" required><small id="pw-hint">De 10 a 72 caracteres, diferente da atual.</small></label>' +
+      '<label class="field"><span>Repita a senha nova</span><input type="password" id="pw-new2" autocomplete="new-password" data-pw maxlength="200" required></label>' + showToggle +
+      '<p class="lg-err" id="pw-err" role="alert" hidden></p>';
+  }
+  /* Valida, envia e devolve true se trocou. Mostra o erro no próprio formulário. */
+  async function sendPassword(root, errEl, btn, label) {
+    const cur = root.querySelector('#pw-cur').value, nova = root.querySelector('#pw-new').value, rep = root.querySelector('#pw-new2').value;
+    showOn(errEl, '');
+    const bytes = new TextEncoder().encode(nova).length;
+    const bad = !cur ? 'Digite a senha atual.'
+      : nova.length < 10 ? 'A senha nova precisa ter pelo menos 10 caracteres.'
+        : bytes > 72 ? 'A senha pode ter no máximo 72 bytes (letras com acento e símbolos contam como 2 a 4).'
+          : nova === cur ? 'A senha nova precisa ser diferente da atual.'
+            : nova !== rep ? 'As duas senhas novas não são iguais.' : '';
+    if (bad) { showOn(errEl, bad); return false; }
+    busy(btn, true, 'Salvando…');
+    try {
+      const res = await MQ.api('POST', '/api/senha', JSON.stringify({ current_password: cur, password: nova }));
+      if (res.ok) return true;
+      if (res.status === 429) { await countdown(btn, errEl, wait(res), label); return false; }
+      const j = await jsonOf(res), er = j.errors || {};
+      showOn(errEl, res.status === 401 ? 'Sua sessão terminou. Recarregue a página e entre de novo.'
+        : er.current_password ? 'A senha atual está incorreta.'
+          : er.password ? (/72 bytes/.test(er.password[0]) ? er.password[0] : 'A senha nova não foi aceita. Use de 10 a 72 caracteres, diferente da atual.')
+            : 'Não foi possível trocar a senha agora. Tente de novo em instantes.');
+    } catch (x) {
+      console.error(x);
+      showOn(errEl, SEM_REDE);
+    }
+    busy(btn, false, label);
+    return false;
+  }
+
+  /* Tela cheia, antes de qualquer outra: só sai trocando a senha (ou saindo da conta) */
+  function screenChange(opt) {
+    opt = opt || {};
+    return new Promise(resolve => {
+      const el = screen(
+        '<h1>Crie a sua senha</h1><p class="lg-sub">A senha que você recebeu é provisória. Escolha uma senha só sua para continuar.</p>' +
+        '<form class="lg-form" id="pw-form" novalidate>' + pwFields(true) + '<button type="submit" class="btn primary big" id="pw-go">Salvar senha e entrar</button></form>' +
+        (opt.canCancel ? backBtn : '<button type="button" class="btn ghost" id="pw-out">Sair</button>') +
+        '<p class="lg-fine lg-privacy"><b>Seus dados.</b> ' + esc(A.PRIVACY) + '</p>');
+      bindShow(el); bindBack(el, resolve);
+      el.querySelector('#pw-form').onsubmit = async e => {
+        e.preventDefault();
+        if (off(el.querySelector('#pw-go'))) return;
+        if (await sendPassword(el, el.querySelector('#pw-err'), el.querySelector('#pw-go'), 'Salvar senha e entrar')) { leave(el); resolve(true); }
+      };
+      const out = el.querySelector('#pw-out');
+      if (out) out.onclick = () => A.leaveServer().then(() => location.reload()).catch(() => showOn(el.querySelector('#pw-err'), SEM_REDE));
+      focusFirst(el, '#pw-cur', opt.canCancel);
+    });
+  }
+
+  /* Em Configurações › Conta: janela para trocar a senha */
+  A.changePassword = function () {
+    MQ.modal({
+      title: 'Trocar senha',
+      body: '<form class="lg-form" id="pw-form" novalidate>' + pwFields(false) + '<button type="submit" hidden></button></form>',
+      onOpen: (root, close) => {
+        bindShow(root);
+        const go = root.querySelector('.modal-foot .primary');
+        root.querySelector('#pw-form').onsubmit = async e => {
+          e.preventDefault();
+          if (off(go)) return;
+          if (await sendPassword(root, root.querySelector('#pw-err'), go, 'Trocar senha')) { close(); MQ.toast('Senha trocada. Os outros aparelhos precisam entrar de novo.'); }
+        };
+      },
+      actions: [
+        { label: 'Cancelar', kind: 'ghost' },
+        { label: 'Trocar senha', kind: 'primary', onClick: (close, root) => { root.querySelector('#pw-form').requestSubmit(); return false; } }
+      ]
+    });
+  };
+
+  /* ---------- Sair ---------- */
+  /* Encerra a sessão no servidor e esquece os dados em memória. Lança erro se não conseguiu falar com o servidor. */
+  A.leaveServer = async function () {
+    const res = await MQ.api('POST', '/logout');
+    if (!res.ok && res.status !== 401) throw new Error('HTTP ' + res.status); // 401: a sessão já tinha acabado
+    await MQ.resetData();
+  };
+  A.signOut = async function () {
+    if (MQ.pendingCount()) await MQ.saveNow(); // tenta enviar o que falta antes de sair
+    const left = MQ.pendingCount();
+    const ok = await MQ.confirm('Sair da conta',
+      left ? (left === 1 ? '1 alteração ainda não foi salva e será perdida se você sair. Cancele para tentar de novo, ou exporte um backup em Configurações › Dados e backup.'
+        : left + ' alterações ainda não foram salvas e serão perdidas se você sair. Cancele para tentar de novo, ou exporte um backup em Configurações › Dados e backup.')
+        : 'Você vai precisar entrar de novo neste aparelho. Seus dados continuam guardados na sua conta.',
+      left ? 'Sair mesmo assim' : 'Sair', !!left);
+    if (!ok) return;
+    try { await A.leaveServer(); } catch (e) { console.error(e); MQ.toast('Não foi possível sair agora. Confira a conexão e tente de novo.', 'err'); return; }
+    history.replaceState(null, '', '#/inicio'); // sem hashchange: não redesenha uma tela vazia antes de recarregar
+    location.reload();
+  };
+
+  /* ---------- Entradas usadas pelo app ---------- */
+  /* Antes de carregar os dados: garante sessão e senha definitiva. Resolve com quem entrou. */
+  A.gate = async function () {
+    let me = await fetchMe();
+    if (!me) me = await screenLogin();
+    if (me.must_change_password) await screenChange();
+    A.adopt(me);
+    return me;
+  };
+  /* Com o app aberto: a sessão terminou (401) ou a senha ainda é provisória (403). Entra de novo e manda o que ficou na fila. */
+  let resuming = null;
+  A.resume = function () {
+    resuming = resuming || (async () => {
+      try {
+        const keep = { canCancel: true };
+        let me = await fetchMe();
+        // Entrou outra pessoa: a fila é da anterior e não pode ir para a conta nova. Encerra essa sessão e pede a conta certa.
+        while (!me || (MQ.me && me.id !== MQ.me.id)) {
+          if (me) { await MQ.api('POST', '/logout'); keep.notice = 'Essa conta é outra. Entre com a conta ' + MQ.me.username + ' para salvar suas alterações.'; }
+          me = await screenLogin(keep);
+          if (!me) return; // voltou ao app sem entrar
+        }
+        if (me.must_change_password && !(await screenChange(keep))) return;
+        MQ.me = Object.assign(MQ.me || {}, me, { must_change_password: false });
+        await MQ.saveRetry();
+      } catch (e) { console.error(e); MQ.toast(SEM_REDE, 'err'); } finally {
+        resuming = null;
+        document.body.classList.remove('logged-out');
+        document.getElementById('view').focus({ preventScroll: true });
+      }
+    })();
+    return resuming;
   };
 })(window.MQ);

@@ -24,6 +24,7 @@
     MQ.keyHandler = null;
     MQ.hideTip && MQ.hideTip();
     $$('.popmenu').forEach(m => m.remove());
+    if (document.body.classList.contains('logged-out')) return; // tela de entrada aberta: o app por trás não desenha nada
     const r = MQ.route();
     if (r.name === 'sincronizar') { location.replace('#/configuracoes'); return; } // rota antiga: agora fica em Configurações
     document.body.classList.toggle('in-solve', r.name === 'resolver');
@@ -92,22 +93,31 @@
     $$('[data-icon]').forEach(s => { s.outerHTML = icon(s.dataset.icon); });
     MQ.loadLocal();
     MQ.applyTheme();
-    await MQ.loadData(); // GET /api/me e /api/dados; sem sessão, cai no aviso abaixo
+    dropOldCaches();
+    await MQ.auth.gate(); // sem sessão: tela de login; com senha provisória: troca obrigatória antes de qualquer tela
+    await MQ.loadData(); // GET /api/me e /api/dados
     if (MQ.reminderApply) MQ.reminderApply(); // reagenda o lembrete com a meta atual
     MQ.bankFilter = MQ.newFilter(); // depois de carregar os dados: o filtro padrão vem de MQ.local.filtroPadrao
     MQ.applyTheme();
     document.documentElement.style.setProperty('--font-scale', Math.max(MQ.MIN_FONT_SCALE, MQ.local.fontScale || 1));
+    document.body.classList.remove('logged-out'); // o index.html começa escondido; só aparece com a conta e os dados carregados
     if (!location.hash) location.hash = '#/inicio';
     MQ.render();
-    /* Site: funciona offline depois da primeira visita (só em https ou localhost; nunca no Electron/Capacitor) */
-    if (MQ.auth && MQ.auth.web && 'serviceWorker' in navigator && /^(https:|http:\/\/localhost)/.test(location.href)) navigator.serviceWorker.register('sw.js').catch(e => console.error(e));
+    document.getElementById('view').focus({ preventScroll: true });
+  }
+
+  /* O site antigo registrava um service worker (modo offline). Agora é só online: cancela os registros e apaga os caches antigos. */
+  function dropOldCaches() {
+    if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(e => console.error(e));
+    if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(e => console.error(e));
   }
   init().catch(e => {
     console.error(e);
-    // shortcut: sem tela de login ainda (etapa 6); por enquanto só explica o que fazer
-    const msg = e.status === 401 ? ['Você não está conectado', 'Entre na sua conta do Pulse para ver seus dados.']
-      : e.status === 403 ? ['Troque a senha provisória', 'Sua conta está com senha provisória. Troque a senha para continuar.']
-        : ['Não foi possível abrir seus dados', 'Verifique a conexão com a internet e recarregue a página.'];
-    document.getElementById('view').innerHTML = '<div class="empty"><h2>' + msg[0] + '</h2><p>' + msg[1] + '</p></div>';
+    // a entrada (login e senha provisória) já passou; aqui sobra falha de rede ou do servidor
+    const msg = e.status === 401 || e.status === 403 ? ['Sua sessão terminou', 'Recarregue a página para entrar de novo.']
+      : ['Não foi possível abrir seus dados', 'Verifique a conexão com a internet e tente de novo.'];
+    document.body.classList.remove('logged-out');
+    document.getElementById('view').innerHTML = '<div class="empty"><h2>' + msg[0] + '</h2><p>' + msg[1] + '</p><button class="btn primary" id="app-reload">Recarregar</button></div>';
+    document.getElementById('app-reload').onclick = () => location.reload();
   });
 })(window.MQ);

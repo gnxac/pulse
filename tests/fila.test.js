@@ -136,7 +136,14 @@ const vm = require('vm');
   await MQ.saveNow();
   assert.strictEqual(MQ.syncStatus.state, 'err');
   assert.ok(/senha provisória/.test(toasts[toasts.length - 1].msg));
+  assert.strictEqual(toasts[toasts.length - 1].act.label, 'Trocar senha');
   assert.strictEqual(MQ.pendingCount(), 1);
+  // com 401/403 repetir o envio não adianta: o botão abre a tela de entrada (auth.js) e ela é que reenvia
+  let entrou = 0;
+  MQ.auth = { resume: () => { entrou++; } };
+  MQ.retryClick();
+  assert.strictEqual(entrou, 1);
+  delete MQ.auth;
   respostaPost = null;
   await MQ.saveRetry();
   assert.strictEqual(salvo.notes.n403.text, 'espera');

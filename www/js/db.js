@@ -148,7 +148,7 @@
     ack(items);
   }
 
-  let sending = null, timer = null, retryMs = 0, state = 'ok';
+  let sending = null, timer = null, retryMs = 0, state = 'ok', errStatus = 0;
   /* Manda tudo o que está pendente, lote a lote, até a fila esvaziar (o que mudar no meio vai na volta seguinte).
      Quem chama durante um envio recebe a mesma promessa, que só termina com a fila vazia ou com erro. */
   function send() {
@@ -179,15 +179,20 @@
     return sending;
   }
   MQ.saveRetry = () => { retryMs = 0; return send(); };
+  /* Botão e aviso "Tentar de novo": com sessão encerrada (401) ou senha provisória (403) repetir não adianta; abre a tela de entrada (auth.js) */
+  MQ.retryClick = () => ((errStatus === 401 || errStatus === 403) && MQ.auth ? MQ.auth.resume() : MQ.saveRetry());
 
   /* ---------- Indicador: Salvo / Salvando… / Não salvo · Tentar de novo ---------- */
   const STATES = { ok: ['on', 'Salvo', 'Salvo'], busy: ['busy', 'Salvando…', 'Salvando'], err: ['err', 'Não salvo', 'Não salvo'] };
   MQ.syncDot = s => (STATES[s] || STATES.ok)[0];
   MQ.syncStatus = { state: 'ok', msg: 'Salvo' };
-  MQ.retryHtml = () => '<button type="button" class="btn sm save-retry" data-save-retry' + (state === 'err' ? '' : ' hidden') + '>Tentar de novo</button>';
+  const retryLabel = () => (errStatus === 401 ? 'Entrar' : errStatus === 403 ? 'Trocar senha' : 'Tentar de novo');
+  MQ.retryHtml = () => '<button type="button" class="btn sm save-retry" data-save-retry' + (state === 'err' ? '' : ' hidden') + '>' + retryLabel() + '</button>';
   let avisado = false;
   function setState(s, status) {
     state = s;
+    // 401/403 valem até o próximo "Salvo": uma falha de rede no meio não pode esconder que a sessão acabou
+    errStatus = s === 'ok' ? 0 : s === 'busy' ? errStatus : (status === 401 || status === 403 ? status : [401, 403].includes(errStatus) ? errStatus : status || 0);
     const [dot, msg, short] = STATES[s];
     MQ.syncStatus = { state: s, msg };
     // no celular o indicador só aparece no Início: o aviso vai também por toast, com o botão
@@ -196,18 +201,19 @@
       avisado = true; // um aviso por falha, não um a cada nova tentativa
       MQ.toast(status === 401 ? 'Sua sessão terminou. Entre de novo para salvar; suas alterações continuam aqui.'
         : status === 403 ? 'Troque a senha provisória para salvar; suas alterações continuam aqui.'
-          : 'Não foi possível salvar. Suas alterações continuam aqui e serão enviadas quando a conexão voltar.', 'err', { label: 'Tentar de novo', fn: MQ.saveRetry });
+          : 'Não foi possível salvar. Suas alterações continuam aqui e serão enviadas quando a conexão voltar.', 'err',
+      { label: retryLabel(), fn: MQ.retryClick });
     }
     if (typeof document === 'undefined' || !document.querySelectorAll) return;
     document.querySelectorAll('.sync-dot').forEach(d => { d.className = 'sync-dot ' + dot; });
     document.querySelectorAll('.sync-label').forEach(l => { l.textContent = msg; });
     document.querySelectorAll('.sync-short').forEach(l => { l.textContent = short; });
     document.querySelectorAll('.sync-pill, .home-sync').forEach(p => { p.title = msg; p.setAttribute('aria-label', 'Salvamento: ' + msg); });
-    document.querySelectorAll('[data-save-retry]').forEach(b => { b.hidden = s !== 'err'; });
+    document.querySelectorAll('[data-save-retry]').forEach(b => { b.hidden = s !== 'err'; b.textContent = retryLabel(); });
   }
 
   if (typeof document !== 'undefined' && document.addEventListener) {
-    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-save-retry]')) MQ.saveRetry(); });
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-save-retry]')) MQ.retryClick(); });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') send();
       else if (lastFetch && Date.now() - lastFetch >= REFRESH_MS) refresh();

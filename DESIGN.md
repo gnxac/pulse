@@ -289,9 +289,12 @@ Atalhos de letra só valem fora de campos de texto.
 Seis abas: **Início, Questões, Listas, Anotações, Desempenho, Configurações.** Início é a tela de abertura. Na barra inferior do celular os rótulos curtos são **Desemp.** e **Ajustes**.
 
 ### Entrar (tela de login do site)
-- Aparece antes do app, até a conta Google ser lembrada neste navegador (depois disso o site abre direto, até sem internet). Uma única ação: **Entrar com Google** (botão claro com borda e o G de quatro cores, 48 px, como pede a marca do Google). Sem Google configurado, o botão é "Continuar sem conta neste navegador" e o aviso diz, sem jargão, que nada será sincronizado.
-- **Celular e tablet** (≤ 860 px): só o cartão, com logo, "Entrar", uma frase, 3 benefícios curtos e a nota do que o app acessa antes do botão. **PC** (> 860 px): painel de marca à esquerda (`--accent` de fundo, a única superfície grande em índigo do app) e o cartão à direita.
-- Foco inicial no corpo da página, nunca no botão (o anel âmbar parecia erro).
+- Aparece antes do app, enquanto não houver sessão. Campos **Usuário** e **Senha** (com "Mostrar senha"), um botão primário **Entrar** (pílula de 48 px) e, abaixo, "Esqueceu a senha? Peça ao administrador para criar uma nova." e o aviso curto **"Seus dados."** (o que o Pulse guarda no servidor e que dá para exportar em Configurações › Dados e backup). Sem Google, sem cadastro e sem "continuar sem conta".
+- Erros em caixa `--err-soft` com `role="alert"`: senha errada, usuário inexistente e conta desativada têm **a mesma mensagem** ("Usuário ou senha incorretos."). Depois de 5 erros, "Muitas tentativas. Tente de novo em N segundos." e o botão vira "Aguarde N s" até liberar.
+- **Senha provisória:** depois de entrar com ela, a tela **Crie a sua senha** (senha provisória, senha nova, repetir) vem antes de qualquer tela do app, também ao recarregar; só sai trocando a senha ou clicando em Sair.
+- **Celular e tablet** (≤ 860 px): só o cartão, com logo, "Entrar", o formulário e o aviso. **PC** (> 860 px): painel de marca à esquerda (`--accent` de fundo, a única superfície grande em índigo do app) e o cartão à direita.
+- Foco inicial no campo Usuário só com mouse e teclado; no toque, nenhum campo é focado (o teclado cobriria a tela).
+- Com o app aberto, se a sessão acabar, o aviso "Sua sessão terminou" traz o botão **Entrar**, que abre esta mesma tela por cima; o que estava na fila de envio é salvo ao entrar.
 
 ### Início
 Cada cartão responde "o que faço agora?" e tem uma ação só. Ordem: **Continuar de onde parei** (único cartão de destaque) → **Meta de hoje** (anel 28/40) → **Revisões de hoje** (revisão espaçada; atrasadas à parte) → **Ponto mais fraco** (pior tema em 30 dias, mínimo de 15 respostas, "Treinar 20 questões") → **Sequência** (dias seguidos e a semana em bolinhas, em ciano) → **Dias estudados** (heatmap de 17 semanas). Tablet e PC acrescentam **Acerto por grande área** e **Simulados recentes**. Primeiro uso: cartão "Comece por aqui" no lugar dos números vazios. Sem lista em andamento nem revisões, o destaque vira "Sessão rápida: 10 questões". Sincronização numa pílula pequena, não em cartão.
@@ -335,7 +338,7 @@ Cada cartão responde "o que faço agora?" e tem uma ação só. Ordem: **Contin
 - Menu ⋯: exportar CSV, zerar histórico (confirmação digitada).
 
 ### Configurações
-- Ordem: **Conta e sincronização** (status, alterações pendentes, versão do banco, Sincronizar agora) → Aparência (tema claro/escuro/automático, tamanho do enunciado com prévia) → Estudo (meta diária, lembrete, filtros padrão) → Dados e backup → Atalhos → Administrador (só para o admin) → Sobre.
+- Ordem: **Conta** (usuário, nome, tipo de conta, indicador de salvamento, **Trocar senha** em janela, **Sair** com confirmação e o aviso "Seus dados.") → Aparência (tema claro/escuro/automático, tamanho do enunciado com prévia) → Estudo (meta diária, lembrete, filtros padrão) → Dados e backup → Atalhos → Administrador (só para o admin) → Sobre.
 - Celular: lista com o valor atual à direita, cada item abre a subtela. PC: índice \| conteúdo em rolagem \| status da sincronização e do backup.
 
 ## Elevation & Shapes

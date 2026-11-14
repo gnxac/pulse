@@ -34,7 +34,8 @@
 
     /* Celular: lista com o valor atual à direita; cada item abre a própria subtela (#/configuracoes/<seção>) */
     const ph = phone.matches, one = ph && secs.some(([k]) => k === arg) ? arg : null;
-    const VALUES = { conta: st.msg, aparencia: { auto: 'Automático', light: 'Claro', dark: 'Escuro' }[theme] + ' · ' + scale + '%', estudo: MQ.dailyGoal() + '/dia', dados: na + ' respostas', atalhos: '', admin: '', sobre: 'v' + MQ.VERSION };
+    const me = MQ.me || {};
+    const VALUES = { conta: me.username || '', aparencia: { auto: 'Automático', light: 'Claro', dark: 'Escuro' }[theme] + ' · ' + scale + '%', estudo: MQ.dailyGoal() + '/dia', dados: na + ' respostas', atalhos: '', admin: '', sobre: 'v' + MQ.VERSION };
     const menu = '<nav class="set-menu" aria-label="Seções">' + secs.filter(([k]) => k !== 'atalhos' || matchMedia('(pointer: fine)').matches).map(([k, l]) => '<a class="set-link" href="#/configuracoes/' + k + '"><span>' + l + '</span><span class="set-val">' + esc(VALUES[k]) + '</span>' + icon('right') + '</a>').join('') + '</nav>';
     const bk = MQ.local.lastBackup, pend = MQ.pendingCount();
     const status = '<aside class="set-status" aria-label="Status do salvamento e do backup"><h2>Status</h2><dl class="kv">' +
@@ -49,8 +50,10 @@
       (ph ? (one ? '' : menu) :'<nav class="set-index" aria-label="Seções">' + secs.map(([k, l]) => '<a href="#/configuracoes/' + k + '" data-go="' + k + '">' + l + '</a>').join('') + '</nav>') +
       '<div class="settings">' +
       '<section class="set-sec" id="s-conta"><h2>Conta</h2>' +
+      '<dl class="kv"><dt>Usuário</dt><dd>' + esc(me.username || '') + '</dd><dt>Nome</dt><dd>' + esc(me.name || '') + '</dd><dt>Tipo de conta</dt><dd>' + MQ.auth.roleLabel(me) + '</dd></dl>' +
+      '<div class="set-actions"><button class="btn" id="c-pass">Trocar senha</button><button class="btn" id="c-out">Sair</button></div>' +
       '<div class="set-row"><div class="sync-pill set-pill" role="status" title="' + esc(st.msg) + '" aria-label="Salvamento: ' + esc(st.msg) + '"><span class="sync-dot ' + MQ.syncDot(st.state) + '"></span><span class="sync-label">' + esc(st.msg) + '</span></div>' + MQ.retryHtml() + '</div>' +
-      '<p class="muted small">Suas respostas, listas, simulados, anotações, revisões, marcações e a meta diária ficam salvos na sua conta, no servidor do Pulse.</p></section>' +
+      '<p class="muted small"><b>Seus dados.</b> ' + esc(MQ.auth.PRIVACY) + '</p></section>' +
 
       '<section class="set-sec" id="s-aparencia"><h2>Aparência</h2>' +
       '<div class="set-row"><span>Tema</span><div class="seg" role="group" aria-label="Tema">' +
@@ -82,6 +85,8 @@
     if (ph) { if (one) $$('.set-sec', root).forEach(s => { if (s.id !== 's-' + one) s.remove(); }); else $('.settings', root).remove(); }
     const sub = $('.set-sec h2', root); if (ph && one && sub) sub.hidden = true; // o título já está no cabeçalho
 
+    if ($('#c-pass', root)) $('#c-pass', root).onclick = MQ.auth.changePassword;
+    if ($('#c-out', root)) $('#c-out', root).onclick = MQ.auth.signOut;
     if ($('#bank-dedupe', root)) $('#bank-dedupe', root).onclick = MQ.dedupeDialog;
 
     $$('[data-go]', root).forEach(a => a.onclick = e => { e.preventDefault(); const t = $('#s-' + a.dataset.go, root); if (t) { t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); t.tabIndex = -1; t.focus({ preventScroll: true }); } });

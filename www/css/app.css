@@ -1050,7 +1050,7 @@ body.in-focus .qcard { margin-left: auto; margin-right: auto; }
 
 /* ================= Tela de login (site) ================= */
 body.logged-out .shell { display: none; }
-#login { padding: 0; max-width: none; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--paper); color: var(--ink); }
+#login { position: fixed; inset: 0; z-index: 90; overflow: auto; padding: 0; max-width: none; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--paper); color: var(--ink); }
 .lg-brand { background: var(--accent); color: var(--accent-ink); padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; gap: 24px; }
 .lg-brand h2 { font-size: 2rem; line-height: 1.15; max-width: 16ch; text-wrap: balance; color: inherit; margin: 0; }
 .lg-brand ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-width: 42ch; }
@@ -1062,18 +1062,21 @@ body.logged-out .shell { display: none; }
 .lg-card h1 { margin: 0; font-size: 1.75rem; color: var(--navy); }
 .lg-sub, .lg-fine { margin: 0; color: var(--ink-3); text-wrap: pretty; }
 .lg-fine { font-size: .8125rem; }
-.lg-google { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; padding: 0 20px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer;
-  transition-property: background-color, border-color, scale; transition-duration: var(--t-fast); transition-timing-function: ease-out; }
-.lg-google:hover:not(:disabled) { border-color: var(--ink-3); background: var(--sunk); }
-.lg-google:active:not(:disabled) { scale: .96; }
-.lg-google:disabled, .lg-google[aria-disabled="true"] { opacity: .6; cursor: progress; }
-.lg-google:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.lg-warn { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: .875rem; }
+.lg-fine b { color: var(--ink-2); font-weight: 700; }
+.lg-privacy { padding-top: 14px; border-top: 1px solid var(--line); }
+.lg-form { display: grid; gap: 14px; }
+.lg-form .field { margin: 0; }
+.lg-form .field small { color: var(--ink-3); font-size: .8rem; }
+.lg-form .btn.big { margin-top: 2px; }
+.lg-show { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ink-2); font-size: .875rem; cursor: pointer; }
+.lg-show input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.lg-form .btn[aria-disabled="true"] { background: var(--sunk); border-color: var(--line-2); color: var(--ink-2); cursor: progress; filter: none; opacity: 1; }
+.lg-brand .lg-mark rect { fill: var(--accent-ink); }
+.lg-brand .lg-mark path { stroke: var(--accent); }
+#pw-out, #lg-back { color: var(--accent); }
 .lg-err, .sync-problem { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--err-soft); color: var(--err); font-size: .875rem; }
 .sync-problem { margin: 0 0 14px; }
 .sync-problem.soft { background: var(--warn-soft); color: var(--warn); } /* sem internet e sessão expirada: aviso, não falha */
-.lg-google.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.lg-google.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); filter: brightness(1.08); }
 .btn[aria-busy="true"] { opacity: .65; cursor: progress; pointer-events: none; }
 @media (max-width: 860px) {
   #login { grid-template-columns: 1fr; }
@@ -1081,15 +1084,9 @@ body.logged-out .shell { display: none; }
   .lg-mark.sm { display: flex; }
   .lg-card { align-self: start; padding-top: max(48px, env(safe-area-inset-top)); }
 }
-@media (prefers-reduced-motion: reduce) { .lg-google { transition: none; } .lg-google:active:not(:disabled) { scale: none; } }
 
 /* ================= Crítica P1: login e Resolver no celular ================= */
-.lg-points { display: none; margin: 0; padding: 0; list-style: none; gap: 8px; color: var(--ink-2); font-size: .9375rem; }
-.lg-points li { padding-left: 20px; position: relative; }
-.lg-points li::before { content: ""; position: absolute; left: 0; top: .55em; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-.lg-warn b { font-weight: 700; }
 @media (max-width: 860px) {
-  .lg-points { display: grid; }
   .lg-card { align-self: center; padding-top: max(24px, env(safe-area-inset-top)); }
   /* Resolver: uma linha só de ferramentas (ícones), para o enunciado subir */
   .qrow { flex-wrap: nowrap; justify-content: space-between; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px; }
