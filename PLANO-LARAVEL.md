@@ -196,10 +196,11 @@ Alternativa sem Docker: PHP 8.4 + Composer + PostgreSQL 17 instalados no Windows
 - **Pronto quando:** um backup exportado tem `marks` com as marcações de 2 questões, e `node tests/mesclagem.test.js` passa.
 
 ### 1. Esqueleto do Laravel, Docker e CI
-- [ ] Laravel na raiz, pasta pública = `www/`, `www/index.php`, rota `/up`
-- [ ] `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.env.example`
-- [ ] Workflow `testes.yml` (PHP + front)
+- [x] Laravel 13 na raiz, pasta pública = `www/`, `www/index.php`, rota `/up`
+- [x] `Dockerfile` (estágios `dev` e `prod`), `docker-compose.yml`, `.dockerignore`, `.env.example`
+- [x] Workflow `testes.yml` (PHP + front)
 - **Pronto quando:** `docker compose up -d` serve o app atual (ainda com IndexedDB) em `localhost:8000`, `/up` responde 200, `php artisan test` passa e o CI fica verde.
+- **Verificado em 14/11/2026:** `docker compose up -d` serve o app em `localhost:8000` (site idêntico ao anterior nos 3 formatos, claro e escuro, sem erro de console); `/up` = 200; `php artisan test` = 4 testes passando, em Postgres `pulse_test`; `node tests/*.test.js` passam; a imagem `prod` sobe sozinha (`config:cache` e `route:cache` na partida, sem PHPUnit, `/.env` bloqueado). **Falta só o CI no GitHub:** `testes.yml` passou no `actionlint`, mas só roda de verdade depois do primeiro push; marcar como verde quando rodar.
 
 ### 2. Tabelas
 - [ ] Migrações de `users`, `questions`, `attempts`, `folders`, `lists`, `runs`, `notes`, `reviews`, `prefs`, `marks`, `media`, `sessions`, `cache`

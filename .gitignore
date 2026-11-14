@@ -3,3 +3,22 @@ dist/
 dist-admin/
 android/
 graphify-out/
+
+# Laravel
+/vendor/
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+/.phpunit.cache
+/.idea
+/.vscode
+/auth.json
+/storage/*.key
+/storage/pail
+/www/storage
+/www/hot
+Homestead.json
+Homestead.yaml
+Thumbs.db
+*.log

@@ -1,0 +1,53 @@
+# Ambiente local do Pulse: a mesma imagem da produção (estágio "dev") + PostgreSQL 17.
+#   cp .env.example .env
+#   docker compose up -d
+#   docker compose exec app php artisan key:generate
+#   docker compose exec app php artisan test   (fora do Docker, use DB_HOST=127.0.0.1)
+# Mudou composer.json/composer.lock? Rode: docker compose exec app composer install  (o volume vendor só é preenchido na 1ª vez).
+# Site em http://localhost:8000
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "8000:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_HOST: db
+    volumes:
+      # Código e www/ montados: editar sem rebuild.
+      - .:/var/www/html
+      # vendor e caches ficam em volumes do Docker (não no disco do Windows): mais rápido e sem erro de permissão.
+      - vendor:/var/www/html/vendor
+      - storage:/var/www/html/storage
+      - bootstrap-cache:/var/www/html/bootstrap/cache
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: pulse
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Cria o banco de testes (pulse_test) na primeira vez que o volume é criado.
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse -d pulse"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
+  vendor:
+  storage:
+  bootstrap-cache:

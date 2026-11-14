@@ -1,0 +1,6 @@
+# Arquivos que rodam no Linux dos contêineres: sempre com LF, mesmo no Windows.
+*.php text eol=lf
+*.sh text eol=lf
+artisan text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
