@@ -141,8 +141,12 @@
       MQ.put('notes', { id: to, qid: to, text: nt && nt.text && nt.text !== nf.text ? nt.text + '\n\n' + nf.text : nf.text });
       MQ.remove('notes', from);
     }
-    const mk = MQ.local.marks;
-    if (mk && mk[from]) { mk[to] = Object.assign({}, mk[from], mk[to]); delete mk[from]; MQ.saveLocal(); }
+    const mf = MQ.get('marks', from);
+    if (mf) {
+      const mt = MQ.get('marks', to);
+      MQ.put('marks', { id: to, qid: to, m: Object.assign({}, mf.m, mt && mt.m), createdAt: mt && mt.createdAt });
+      MQ.remove('marks', from);
+    }
   }
   function absorb(keep, d) {
     MQ.dupMerge(keep, d);

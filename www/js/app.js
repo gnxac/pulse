@@ -11,13 +11,6 @@
 
   const NAV_FOR = { anotacoes: 'anotacoes', inicio: 'inicio', questoes: 'questoes', resolver: 'questoes', listas: 'listas', simulado: 'listas', resultado: 'listas', desempenho: 'desempenho', configuracoes: 'configuracoes', cadastrar: 'configuracoes', sincronizar: 'configuracoes' };
 
-  MQ.isAdmin = function () {
-    if (window.mqNative && window.mqNative.admin) return true; // versão Windows Admin
-    const email = ((MQ.local.sync && MQ.local.sync.email) || '').trim().toLowerCase();
-    const admins = ((window.MQ_CONFIG || {}).adminEmails || []).map(e => String(e).trim().toLowerCase());
-    return !!email && admins.includes(email);
-  };
-
   function focusKey(el) {
     if (el.id) return '#' + CSS.escape(el.id);
     const d = Object.keys(el.dataset || {})[0];
@@ -97,22 +90,24 @@
 
   async function init() {
     $$('[data-icon]').forEach(s => { s.outerHTML = icon(s.dataset.icon); });
-    await MQ.loadData();
+    MQ.loadLocal();
     MQ.applyTheme();
-    if (MQ.auth) await MQ.auth.gate(); // no site, só abre depois do login com Google
+    await MQ.loadData(); // GET /api/me e /api/dados; sem sessão, cai no aviso abaixo
     if (MQ.reminderApply) MQ.reminderApply(); // reagenda o lembrete com a meta atual
     MQ.bankFilter = MQ.newFilter(); // depois de carregar os dados: o filtro padrão vem de MQ.local.filtroPadrao
     MQ.applyTheme();
     document.documentElement.style.setProperty('--font-scale', Math.max(MQ.MIN_FONT_SCALE, MQ.local.fontScale || 1));
-    MQ.seedIfEmpty();
     if (!location.hash) location.hash = '#/inicio';
     MQ.render();
-    MQ.initSync();
     /* Site: funciona offline depois da primeira visita (só em https ou localhost; nunca no Electron/Capacitor) */
     if (MQ.auth && MQ.auth.web && 'serviceWorker' in navigator && /^(https:|http:\/\/localhost)/.test(location.href)) navigator.serviceWorker.register('sw.js').catch(e => console.error(e));
   }
   init().catch(e => {
     console.error(e);
-    document.getElementById('view').innerHTML = '<div class="empty"><h2>Não foi possível abrir seus dados</h2><p>' + MQ.esc(e.message || String(e)) + '</p></div>';
+    // shortcut: sem tela de login ainda (etapa 6); por enquanto só explica o que fazer
+    const msg = e.status === 401 ? ['Você não está conectado', 'Entre na sua conta do Pulse para ver seus dados.']
+      : e.status === 403 ? ['Troque a senha provisória', 'Sua conta está com senha provisória. Troque a senha para continuar.']
+        : ['Não foi possível abrir seus dados', 'Verifique a conexão com a internet e recarregue a página.'];
+    document.getElementById('view').innerHTML = '<div class="empty"><h2>' + msg[0] + '</h2><p>' + msg[1] + '</p></div>';
   });
 })(window.MQ);

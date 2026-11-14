@@ -1,5 +1,5 @@
 /* Caderno R1 — marca-texto no enunciado e nas alternativas (5 cores claras).
-   As marcações ficam guardadas neste aparelho, por questão: MQ.local.marks[qid][alvo] = [[início, fim, cor], ...]
+   As marcações vão para o servidor na coleção marks, uma por questão: { id: qid, qid, m: { alvo: [[início, fim, cor], ...] } }
    onde alvo é "stem" (enunciado) ou a letra da alternativa, e início/fim contam caracteres do texto. */
 (function (MQ) {
   'use strict';
@@ -8,13 +8,12 @@
     ['red', 'Vermelho'], ['yellow', 'Amarelo'], ['blue', 'Azul'], ['green', 'Verde'], ['pink', 'Rosa']
   ];
 
-  function store() { return MQ.local.marks || (MQ.local.marks = {}); }
-  MQ.marksFor = function (qid) { return store()[qid] || {}; };
+  MQ.marksFor = function (qid) { const o = MQ.get('marks', qid); return (o && o.m) || {}; };
   MQ.hasMarks = function (qid) {
-    const m = store()[qid];
-    return !!m && Object.keys(m).some(k => m[k] && m[k].length);
+    const m = MQ.marksFor(qid);
+    return Object.keys(m).some(k => m[k] && m[k].length);
   };
-  MQ.clearMarks = function (qid) { delete store()[qid]; MQ.saveLocal(); };
+  MQ.clearMarks = function (qid) { MQ.remove('marks', qid); };
 
   /* Pinta [s,e) com a cor (ou apaga, se cor = null) sobre segmentos que não se sobrepõem. */
   function paint(segs, s, e, color) {
@@ -128,11 +127,11 @@
   }
 
   function apply(p, color) {
-    const all = store();
-    const m = all[p.qid] || (all[p.qid] = {});
+    const cur = MQ.get('marks', p.qid);
+    const m = Object.assign({}, cur && cur.m);
     p.list.forEach(t => { m[t.key] = paint(m[t.key], t.s, t.e, color); if (!m[t.key].length) delete m[t.key]; });
-    if (!Object.keys(m).length) delete all[p.qid];
-    MQ.saveLocal();
+    if (Object.keys(m).length) MQ.put('marks', { id: p.qid, qid: p.qid, m, createdAt: cur && cur.createdAt });
+    else MQ.remove('marks', p.qid);
     const sel = window.getSelection();
     if (sel) sel.removeAllRanges();
     hideBar();

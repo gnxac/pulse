@@ -69,40 +69,26 @@ assert.strictEqual(vm.runInContext('({}).poluido', ctx), undefined);
 assert.strictEqual(MQ.data.notes.q9, undefined);
 assert.strictEqual(MQ.data.notes.id, undefined); // o item "__proto__" não virou protótipo da coleção
 
-// 8. Marca-texto vai no backup como coleção "marks" e a mesclagem aceita (sem marcação vazia)
+// 8. Marca-texto é a coleção "marks" (vai no backup e para o servidor); restaurar de novo não muda nada
 fresh();
-MQ.local.marks = { q1: { stem: [[0, 5, 'yellow']] }, q2: { A: [[1, 3, 'red']], stem: [] }, q3: { stem: [] } };
-const marks = MQ.marksForBackup();
-assert.deepStrictEqual(Object.keys(marks).sort(), ['q1', 'q2']);
-assert.strictEqual(marks.q1.id, 'q1');
-assert.strictEqual(marks.q1.qid, 'q1');
-assert.deepStrictEqual(marks.q2.m.A, [[1, 3, 'red']]);
-assert.ok(marks.q1.updatedAt > 0);
-const backup = JSON.parse(JSON.stringify(Object.assign({}, MQ.data, { marks, media: {} })));
+MQ.put('marks', { id: 'q1', qid: 'q1', m: { stem: [[0, 5, 'yellow']] } });
+const backup = JSON.parse(JSON.stringify(Object.assign({}, MQ.data, { media: {} })));
+assert.deepStrictEqual(backup.marks.q1.m.stem, [[0, 5, 'yellow']]);
 fresh();
-assert.strictEqual(MQ.mergeData(backup), 2);
+assert.strictEqual(MQ.mergeData(Object.assign({}, backup, { marks: MQ.cleanMarks(backup.marks) })), 1);
 assert.deepStrictEqual(MQ.get('marks', 'q1').m.stem, [[0, 5, 'yellow']]);
-assert.strictEqual(MQ.mergeData(backup), 0); // restaurar de novo não muda nada
+assert.strictEqual(MQ.mergeData(Object.assign({}, backup, { marks: MQ.cleanMarks(backup.marks) })), 0);
 
-// 9. Restaurar devolve o marca-texto a MQ.local.marks; a marcação local fica; reimportar não conta de novo
-MQ.local.marks = { q2: { stem: [[2, 4, 'blue']] } };
-assert.strictEqual(MQ.marksFromBackup(marks, true), 1);
-assert.strictEqual(MQ.local.marks.q1, undefined); // dry não grava
-assert.strictEqual(MQ.marksFromBackup(marks), 1);
-assert.deepStrictEqual(MQ.local.marks.q1.stem, [[0, 5, 'yellow']]);
-assert.deepStrictEqual(MQ.local.marks.q2.stem, [[2, 4, 'blue']]);
-assert.strictEqual(MQ.marksFromBackup(marks), 0);
-assert.strictEqual(MQ.marksFromBackup(JSON.parse('{"__proto__":{"m":{}},"x":{"deleted":true,"m":{}},"y":5}')), 0);
-assert.strictEqual(MQ.marksFromBackup(undefined), 0);
-// arquivo malformado: só entram trechos válidos em alvos conhecidos; marcação local vazia não bloqueia
-MQ.local.marks = { q5: {} };
-assert.strictEqual(MQ.marksFromBackup({
-  q4: { m: { stem: 'abc', A: [5], B: [[0, 3, 'x hidden']], C: [[3, 1, 'red']] } },
-  q5: { m: { stem: [[5, 8, 'green'], [0, 2, 'red'], [1, 4, 'pink'], [1, 9, 'blue', 4]], zz: [[0, 1, 'red']], __proto__: [] } }
-}), 1);
-assert.strictEqual(MQ.local.marks.q4, undefined);
-assert.deepStrictEqual(Object.keys(MQ.local.marks.q5), ['stem']);
-assert.deepStrictEqual(MQ.local.marks.q5.stem, [[0, 2, 'red'], [5, 8, 'green']]); // em ordem, sem sobreposição
+// 9. Backup malformado: só entram trechos válidos em alvos conhecidos (nada de classe CSS solta); lápide fica lápide
+const limpo = MQ.cleanMarks(JSON.parse('{"__proto__":{"m":{}},"y":5,"z":{"id":"z","m":{"stem":[]}},' +
+  '"q4":{"m":{"stem":"abc","A":[5],"B":[[0,3,"x hidden"]],"C":[[3,1,"red"]]}},' +
+  '"q5":{"updatedAt":9,"m":{"stem":[[5,8,"green"],[0,2,"red"],[1,4,"pink"],[1,9,"blue",4]],"zz":[[0,1,"red"]]}},' +
+  '"q6":{"deleted":true,"m":{"stem":[[0,1,"red"]]},"updatedAt":7}}'));
+const plain = o => JSON.parse(JSON.stringify(o)); // objetos criados no contexto do vm têm outro protótipo
+assert.deepStrictEqual(Object.keys(limpo).sort(), ['q5', 'q6']);
+assert.deepStrictEqual(plain(limpo.q5), { id: 'q5', qid: 'q5', updatedAt: 9, m: { stem: [[0, 2, 'red'], [5, 8, 'green']] } });
+assert.deepStrictEqual(plain(limpo.q6), { id: 'q6', deleted: true, updatedAt: 7 });
+assert.deepStrictEqual(plain(MQ.cleanMarks(undefined)), {});
 
 // 10. A saída de GET /api/dados (gravada pelo tests/Feature/DadosTest.php) entra inteira pelo mergeData
 fresh();

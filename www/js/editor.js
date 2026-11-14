@@ -148,14 +148,10 @@
 
   const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   const andList = a => (a.length > 1 ? a.slice(0, -1).join(', ') + ' e ' + a[a.length - 1] : a[0] || '');
-  /* Grava já (não espera os 250 ms) e avisa se o navegador recusou, por exemplo sem espaço */
+  /* Envia já, sem esperar os 250 ms. Se a rede falhar, tudo fica na fila e o indicador mostra "Não salvo". */
   async function commit() {
-    MQ.touch();
-    try { await MQ.saveNow(); return true; } catch (e) {
-      console.error(e);
-      MQ.toast(e && e.name === 'QuotaExceededError' ? 'Sem espaço neste navegador para guardar os dados. Libere espaço (ou exporte um backup) e tente de novo.' : 'A importação parou por um erro. Tente o mesmo arquivo de novo: o que já entrou não se duplica.', 'err');
-      return false;
-    }
+    await MQ.saveNow();
+    return true;
   }
   const downloadTemplate = () => {
     const rows = [CSV_COLS, ['Mulher de 30 anos com... Qual a conduta?', 'Alternativa A', 'Alternativa B', 'Alternativa C', 'Alternativa D', 'Alternativa E', 'B', 'Comentário explicando o gabarito', 'Clínica Médica', 'Cardiologia', 'Arritmias', 'Fibrilação Atrial', 'Hospital X', 'SP', '2025', 'Residência (Acesso Direto)', 'Banca Y', '', 'multipla', 'nao', 'nao']];
@@ -232,14 +228,14 @@
   }
 
   /* Backup completo e restauração (também em Configurações): restaurar mescla com os dados atuais, nunca apaga */
-  MQ.backupExport = () => MQ.saveFile('pulse-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(Object.assign({}, MQ.data, { marks: MQ.marksForBackup(), media: MQ.media })), 'application/json');
+  MQ.backupExport = () => MQ.saveFile('pulse-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(Object.assign({}, MQ.data, { media: MQ.media })), 'application/json');
   const ROT = { attempts: ['resposta', 'respostas'], notes: ['anotação', 'anotações'], lists: ['lista', 'listas'], folders: ['pasta', 'pastas'], runs: ['simulado', 'simulados'], reviews: ['revisão', 'revisões'] };
   const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
   const okQuestion = q => isObj(q) && (q.deleted || (typeof q.id === 'string' && typeof q.enunciado === 'string' && q.enunciado.trim() && Array.isArray(q.alternativas) && q.alternativas.length >= 2));
   /* O que o arquivo muda aqui, contado como a mesclagem decide (item novo ou edição mais recente): add por coleção e gone = itens que o arquivo remove */
   function preview(d) {
     const add = {}; let gone = 0;
-    ['questions'].concat(Object.keys(ROT)).forEach(c => {
+    ['questions', 'marks'].concat(Object.keys(ROT)).forEach(c => {
       if (!isObj(d[c])) return;
       Object.keys(d[c]).forEach(id => {
         const ro = d[c][id], lo = MQ.data[c][id];
@@ -258,29 +254,33 @@
       MQ.toast(/\.csv$/i.test(f.name) ? 'Este é um arquivo CSV. Use "Importar CSV" para planilhas.' : 'Não foi possível ler este arquivo como backup ou pacote do Pulse. Escolha um arquivo pulse-backup-….json.', 'err');
       return;
     }
-    const questions = {}; let bad = 0;
-    Object.keys(d.questions).forEach(id => { if (okQuestion(d.questions[id])) questions[id] = d.questions[id]; else bad++; });
-    if (bad && !Object.keys(questions).length) { MQ.toast('Nenhuma questão válida neste arquivo (faltam enunciado ou alternativas). Confira se é um backup ou pacote do Pulse.', 'err'); return; }
-    const media = {}; // só imagens de verdade: o valor vai direto para o src da tag img
-    Object.keys(isObj(d.media) ? d.media : {}).forEach(id => { if (typeof d.media[id] === 'string' && /^data:image\//.test(d.media[id])) media[id] = d.media[id]; });
-    const marks = d.marks; // marca-texto vive em MQ.local, não em MQ.data
-    d = Object.assign({}, d, { questions, marks: undefined });
+    // D3: só o admin grava questões e imagens; do backup de um estudante entram só os dados pessoais
+    const admin = MQ.isAdmin(), questions = {}, media = {}; let bad = 0;
+    if (admin) {
+      Object.keys(d.questions).forEach(id => { if (okQuestion(d.questions[id])) questions[id] = d.questions[id]; else bad++; });
+      if (bad && !Object.keys(questions).length) { MQ.toast('Nenhuma questão válida neste arquivo (faltam enunciado ou alternativas). Confira se é um backup ou pacote do Pulse.', 'err'); return; }
+      // só imagens de verdade: o valor vai direto para o src da tag img
+      Object.keys(isObj(d.media) ? d.media : {}).forEach(id => { if (typeof d.media[id] === 'string' && /^data:image\//.test(d.media[id])) media[id] = d.media[id]; });
+    }
+    const skipped = !admin && Object.keys(d.questions).length;
+    d = Object.assign({}, d, { questions, media: undefined, marks: MQ.cleanMarks(d.marks) });
     const pre = MQ.mergeDeduped(d, true), p = preview(d);
-    const nimg = Object.keys(media).filter(id => !MQ.media[id]).length, nmk = MQ.marksFromBackup(marks, true);
+    const nimg = Object.keys(media).filter(id => !MQ.media[id]).length, nmk = p.add.marks || 0;
     const parts = [];
     if (pre.added) parts.push(pl(pre.added, 'questão nova', 'questões novas'));
     Object.keys(ROT).forEach(c => { if (p.add[c]) parts.push(pl(p.add[c], ROT[c][0], ROT[c][1])); });
     if (nimg) parts.push(pl(nimg, 'imagem', 'imagens'));
     if (nmk) parts.push(pl(nmk, 'questão com marca-texto', 'questões com marca-texto'));
-    if (!parts.length && !p.gone) { MQ.toast('Este arquivo não traz nada novo: tudo o que ele tem já está neste aparelho.'); return; }
+    if (!parts.length && !p.gone) { MQ.toast('Este arquivo não traz nada novo: tudo o que ele tem já está na sua conta.'); return; }
     const kind = d.formato === 'caderno-r1-pacote' ? 'pacote' : 'backup';
     const ok = await MQ.confirm(kind === 'pacote' ? 'Importar pacote' : 'Restaurar backup',
       (d.nome ? d.nome + ': ' : '') + (parts.length ? 'Vai entrar ' + andList(parts) + '.' : 'Nada novo para adicionar.') + (pre.dup ? ' Questões que já existem aqui não se duplicam.' : '') +
       (bad ? ' ' + pl(bad, 'questão incompleta será ignorada', 'questões incompletas serão ignoradas') + '.' : '') +
       (p.gone ? ' Atenção: ' + pl(p.gone, 'item que o arquivo marca como removido sai', 'itens que o arquivo marca como removidos saem') + ' daqui, porque a remoção é mais recente que a sua última edição.' : '') +
+      (skipped ? ' As questões do arquivo ficam de fora: só o administrador cadastra questões.' : '') +
       ' O resto do que você tem fica como está.', kind === 'pacote' ? 'Importar' : 'Restaurar');
     if (!ok) return;
-    try { MQ.mergeDeduped(d); MQ.mergeMedia(media, true); MQ.marksFromBackup(marks); } catch (e) { console.error(e); MQ.toast('A importação parou por um erro. Tente o mesmo arquivo de novo: o que já entrou não se duplica.', 'err'); return; }
+    try { MQ.mergeDeduped(d); MQ.mergeMedia(media); } catch (e) { console.error(e); MQ.toast('A importação parou por um erro. Tente o mesmo arquivo de novo: o que já entrou não se duplica.', 'err'); return; }
     if (!await commit()) return;
     MQ.toast((kind === 'pacote' ? 'Importado: ' : 'Restaurado: ') + andList(parts) + (p.gone ? '; ' + pl(p.gone, 'item removido', 'itens removidos') : '') + '.');
     MQ.render(); // os contadores da tela refletem o que entrou

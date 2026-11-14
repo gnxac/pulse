@@ -1,18 +1,18 @@
-/* Caderno R1 — dados locais (IndexedDB) e regras de mesclagem para sincronizar */
+/* Pulse — dados do usuário. Ao abrir: GET /api/dados → MQ.data. Cada mudança entra numa fila em memória e vai
+   em lotes para POST /api/salvar (PLANO-LARAVEL.md, etapas 4 e 5). Nada fica no IndexedDB; MQ.local (preferências
+   deste aparelho) fica no localStorage. */
 (function (MQ) {
   'use strict';
 
-  const DB_NAME = 'caderno-r1';
-  const STORE = 'kv';
-  const KEY_DATA = 'dados';
-  const KEY_LOCAL = 'local';
-  const KEY_MEDIA = 'midia';
-  /* notes: anotação por questão · reviews: revisão espaçada por questão · prefs: meta e lembrete (sincronizam) */
-  const COLLECTIONS = ['questions', 'attempts', 'folders', 'lists', 'runs', 'notes', 'reviews', 'prefs'];
+  /* As 9 coleções que o servidor guarda; só elas vão para a fila. questions só o admin grava (D3). */
+  const COLLECTIONS = ['questions', 'attempts', 'folders', 'lists', 'runs', 'notes', 'reviews', 'prefs', 'marks'];
   /* Coleção = objeto de itens por id; "version" e "counter" são números e ficam de fora */
   const isColl = v => !!v && typeof v === 'object' && !Array.isArray(v);
   /* Chaves que, vindas de um JSON, alterariam o protótipo dos objetos */
   const UNSAFE = new Set(['__proto__', 'constructor', 'prototype']);
+  const LOCAL_KEY = 'pulse:local';
+  const MAX_ITENS = 500, MAX_BYTES = 4.5 * 1024 * 1024; // o servidor aceita 500 itens e 5 MB por chamada
+  const REFRESH_MS = 5 * 60000; // ao voltar à aba depois disso, busca o que outro aparelho gravou
 
   function emptyData() {
     const d = { version: 1, counter: 0 };
@@ -21,131 +21,265 @@
   }
 
   MQ.data = emptyData();
-  /* Configurações só deste aparelho (não sincronizam) */
-  MQ.local = { fontScale: 1, theme: 'auto', sync: {}, deviceId: null, lastSync: 0, seeded: false };
+  /* Só deste aparelho (localStorage): tema, fonte, abas, filtro padrão, progresso das listas, "continuar". */
+  MQ.local = { fontScale: 1, theme: 'auto', deviceId: null };
+  MQ.me = null; // { id, username, name, role, must_change_password } de GET /api/me
+  MQ.isAdmin = () => !!(MQ.me && MQ.me.role === 'admin');
 
-  let idb = null;
-  function openIDB() {
-    return new Promise((resolve, reject) => {
-      if (!('indexedDB' in window)) return resolve(null);
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+  MQ.loadLocal = function () {
+    try { Object.assign(MQ.local, JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null')); } catch (e) { /* sem localStorage: fica o padrão */ }
+    if (!MQ.local.deviceId) { MQ.local.deviceId = MQ.uid(); MQ.saveLocal(); }
+  };
+  MQ.saveLocal = function () {
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(MQ.local)); } catch (e) { console.error(e); } // perder preferência não faz mal
+    return Promise.resolve();
+  };
+
+  /* ---------- Servidor ---------- */
+  function cookie(name) {
+    const m = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  const csrf = () => fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' });
+  /* fetch com sessão e CSRF (Sanctum). 419 = token vencido: pega outro e tenta uma vez. */
+  MQ.api = async function (method, path, body, extra) {
+    const go = () => fetch(path, Object.assign({
+      method, body, credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': cookie('XSRF-TOKEN') }
+    }, extra));
+    if (method !== 'GET' && !cookie('XSRF-TOKEN')) await csrf();
+    let res = await go();
+    if (res.status === 419) { await csrf(); res = await go(); }
+    return res;
+  };
+  function httpError(res) { const e = new Error('HTTP ' + res.status); e.status = res.status; return e; }
+
+  /* known[coleção][id] = updatedAt que o servidor já tem. Item com updatedAt diferente está pendente.
+     Comparar com o que está em memória pega toda mudança (MQ.put, MQ.remove, mergeData, restaurar backup). */
+  let known = {}, cursor = null, lastFetch = 0;
+  function remember(d) {
+    COLLECTIONS.forEach(c => {
+      const k = known[c] || (known[c] = Object.create(null));
+      Object.keys(isColl(d[c]) ? d[c] : {}).forEach(id => { const o = d[c][id]; if (isColl(o)) k[id] = o.updatedAt || 0; });
     });
   }
-  function idbGet(key) {
-    return new Promise((resolve, reject) => {
-      if (!idb) return resolve(JSON.parse(localStorage.getItem('mq:' + key) || 'null'));
-      const tx = idb.transaction(STORE, 'readonly');
-      const r = tx.objectStore(STORE).get(key);
-      r.onsuccess = () => resolve(r.result || null);
-      r.onerror = () => reject(r.error);
-    });
-  }
-  function idbSet(key, val) {
-    return new Promise((resolve, reject) => {
-      if (!idb) { localStorage.setItem('mq:' + key, JSON.stringify(val)); return resolve(); }
-      const tx = idb.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(val, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+  /* Dados do servidor: entram pela mesma regra do mergeData (vence o mais novo; o dedupe.js remapeia repetidas). */
+  function applyServer(d) {
+    cursor = d.ate || cursor;
+    delete d.ate;
+    const n = MQ.mergeData(d);
+    remember(d);
+    lastFetch = Date.now();
+    return n;
   }
 
   MQ.loadData = async function () {
-    try { idb = await openIDB(); } catch (e) { idb = null; }
-    const d = await idbGet(KEY_DATA);
-    const l = await idbGet(KEY_LOCAL);
-    if (d) {
-      MQ.data = Object.assign(emptyData(), d);
-      COLLECTIONS.forEach(c => { if (!MQ.data[c]) MQ.data[c] = {}; });
-    }
-    if (l) MQ.local = Object.assign(MQ.local, l);
-    MQ.media = (await idbGet(KEY_MEDIA)) || {};
-    if (!MQ.local.deviceId) { MQ.local.deviceId = MQ.uid(); await MQ.saveLocal(); }
+    const [me, dados] = await Promise.all([MQ.api('GET', '/api/me'), MQ.api('GET', '/api/dados')]);
+    if (!me.ok) throw httpError(me);
+    if (!dados.ok) throw httpError(dados);
+    MQ.me = await me.json();
+    MQ.data = emptyData(); known = {};
+    applyServer(await dados.json());
+    send(); // o que o remapeamento de repetidas mudou
   };
 
-  /* ---------- Imagens (ficam separadas dos dados para a sincronização não pesar) ---------- */
+  /* Ao voltar à aba: só o que chegou ao servidor depois do último carregamento */
+  async function refresh() {
+    if (!MQ.me || !cursor) return;
+    lastFetch = Date.now();
+    try {
+      const res = await MQ.api('GET', '/api/dados?desde=' + encodeURIComponent(cursor));
+      if (!res.ok) throw httpError(res);
+      // não redesenha a prova nem a questão aberta (perderia a alternativa marcada e a seleção)
+      if (applyServer(await res.json()) && !['simulado', 'resolver'].includes(MQ.route().name)) MQ.render();
+    } catch (e) { console.error(e); }
+    send();
+  }
+  MQ.refreshData = refresh;
+
+  /* ---------- Fila de envio ---------- */
+  function pending() {
+    const out = [];
+    COLLECTIONS.forEach(c => {
+      if (c === 'questions' && !MQ.isAdmin()) return; // estudante não grava questões
+      const k = known[c] || (known[c] = Object.create(null)), all = MQ.data[c] || {};
+      Object.keys(all).forEach(id => {
+        const o = all[id];
+        // o servidor recusaria o lote inteiro: id diferente da chave ou updatedAt que não é número
+        if (UNSAFE.has(id) || !isColl(o) || o.id !== id || (o.updatedAt != null && typeof o.updatedAt !== 'number')) return;
+        if (k[id] !== (o.updatedAt || 0)) out.push([c, id, o]);
+      });
+    });
+    return out;
+  }
+  MQ.pendingCount = () => (MQ.me ? pending().length : 0);
+
+  /* Monta lotes de até 500 itens e ~4,5 MB (texto em UTF-8 conta até 3 bytes por caractere) */
+  function batches(list) {
+    const out = [];
+    let cur = null;
+    list.forEach(([c, id, o]) => {
+      const json = JSON.stringify(o), size = json.length * 3 + id.length + 8;
+      if (!cur || cur.items.length >= MAX_ITENS || (cur.items.length && cur.bytes + size > MAX_BYTES)) out.push(cur = { items: [], bytes: 2 });
+      cur.items.push({ c, id, json, u: o.updatedAt || 0 });
+      cur.bytes += size;
+    });
+    return out;
+  }
+  const body = items => {
+    const by = {};
+    items.forEach(i => { (by[i.c] = by[i.c] || []).push(JSON.stringify(i.id) + ':' + i.json); });
+    return '{' + Object.keys(by).map(c => JSON.stringify(c) + ':{' + by[c].join(',') + '}').join(',') + '}';
+  };
+  const ack = items => items.forEach(i => { (known[i.c] || (known[i.c] = Object.create(null)))[i.id] = i.u; });
+
+  /* Envia um lote. Recusa definitiva (413, 422) num lote de vários: manda um a um para salvar os bons;
+     o item recusado sozinho sai da fila com aviso (continua na tela até recarregar). 401 e 403 (sessão encerrada,
+     senha provisória) não descartam nada: o lote fica na fila até a conta voltar. */
+  async function post(items) {
+    const res = await MQ.api('POST', '/api/salvar', body(items));
+    if (res.ok) return ack(items);
+    if (![413, 422].includes(res.status)) throw httpError(res);
+    if (items.length > 1) { for (const i of items) await post([i]); return; }
+    let msg = '';
+    try { msg = (await res.json()).message || ''; } catch (e) { /* sem corpo */ }
+    console.error('Item recusado pelo servidor', items[0].c, items[0].id, res.status, msg);
+    MQ.toast('Um item não pôde ser salvo e foi deixado de lado' + (msg ? ': ' + msg : '.'), 'err');
+    ack(items);
+  }
+
+  let sending = null, timer = null, retryMs = 0, state = 'ok';
+  /* Manda tudo o que está pendente, lote a lote, até a fila esvaziar (o que mudar no meio vai na volta seguinte).
+     Quem chama durante um envio recebe a mesma promessa, que só termina com a fila vazia ou com erro. */
+  function send() {
+    clearTimeout(timer); timer = null;
+    if (!MQ.me) return Promise.resolve();
+    if (sending) return sending;
+    sending = (async () => {
+      await null; // sem isto, com a fila vazia o finally rodaria antes de "sending" receber a promessa e a travaria
+      try {
+        for (let n = 0; n < 1000; n++) {
+          const list = pending();
+          if (!list.length) break;
+          setState('busy');
+          for (const b of batches(list)) await post(b.items);
+        }
+        if (pending().length) throw new Error('fila não esvaziou');
+        retryMs = 0;
+        setState('ok');
+      } catch (e) {
+        console.error(e);
+        setState('err', e.status);
+        retryMs = Math.min(60000, retryMs ? retryMs * 2 : 2000); // 2 s, 4 s, 8 s… até 1 min
+        timer = setTimeout(send, retryMs);
+      } finally {
+        sending = null;
+      }
+    })();
+    return sending;
+  }
+  MQ.saveRetry = () => { retryMs = 0; return send(); };
+
+  /* ---------- Indicador: Salvo / Salvando… / Não salvo · Tentar de novo ---------- */
+  const STATES = { ok: ['on', 'Salvo', 'Salvo'], busy: ['busy', 'Salvando…', 'Salvando'], err: ['err', 'Não salvo', 'Não salvo'] };
+  MQ.syncDot = s => (STATES[s] || STATES.ok)[0];
+  MQ.syncStatus = { state: 'ok', msg: 'Salvo' };
+  MQ.retryHtml = () => '<button type="button" class="btn sm save-retry" data-save-retry' + (state === 'err' ? '' : ' hidden') + '>Tentar de novo</button>';
+  let avisado = false;
+  function setState(s, status) {
+    state = s;
+    const [dot, msg, short] = STATES[s];
+    MQ.syncStatus = { state: s, msg };
+    // no celular o indicador só aparece no Início: o aviso vai também por toast, com o botão
+    if (s === 'ok') avisado = false;
+    if (s === 'err' && !avisado) {
+      avisado = true; // um aviso por falha, não um a cada nova tentativa
+      MQ.toast(status === 401 ? 'Sua sessão terminou. Entre de novo para salvar; suas alterações continuam aqui.'
+        : status === 403 ? 'Troque a senha provisória para salvar; suas alterações continuam aqui.'
+          : 'Não foi possível salvar. Suas alterações continuam aqui e serão enviadas quando a conexão voltar.', 'err', { label: 'Tentar de novo', fn: MQ.saveRetry });
+    }
+    if (typeof document === 'undefined' || !document.querySelectorAll) return;
+    document.querySelectorAll('.sync-dot').forEach(d => { d.className = 'sync-dot ' + dot; });
+    document.querySelectorAll('.sync-label').forEach(l => { l.textContent = msg; });
+    document.querySelectorAll('.sync-short').forEach(l => { l.textContent = short; });
+    document.querySelectorAll('.sync-pill, .home-sync').forEach(p => { p.title = msg; p.setAttribute('aria-label', 'Salvamento: ' + msg); });
+    document.querySelectorAll('[data-save-retry]').forEach(b => { b.hidden = s !== 'err'; });
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-save-retry]')) MQ.saveRetry(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') send();
+      else if (lastFetch && Date.now() - lastFetch >= REFRESH_MS) refresh();
+    });
+  }
+  window.addEventListener('online', () => MQ.saveRetry());
+  /* Fechar a aba com algo por enviar: o navegador pergunta antes de sair */
+  window.addEventListener('beforeunload', e => { if (MQ.pendingCount()) { e.preventDefault(); e.returnValue = ''; } });
+  /* Saindo de fato: última tentativa com keepalive (o navegador limita o corpo a 64 KB) */
+  window.addEventListener('pagehide', () => {
+    if (!MQ.me) return;
+    const items = [];
+    let bytes = 2;
+    for (const [c, id, o] of pending()) {
+      const json = JSON.stringify(o), size = json.length * 3 + id.length + 8;
+      if (bytes + size > 60000) break;
+      items.push({ c, id, json, u: o.updatedAt || 0 }); bytes += size;
+    }
+    if (items.length) MQ.api('POST', '/api/salvar', body(items), { keepalive: true }).catch(() => {});
+  });
+
+  /* Marca alteração: envia em 250 ms (junta várias mudanças seguidas num lote só) */
+  MQ.touch = function () {
+    clearTimeout(timer);
+    timer = setTimeout(send, 250);
+  };
+  /* Envia já (resposta, simulado, importação). Falha não lança: o item fica na fila e o indicador mostra. */
+  MQ.saveNow = () => send();
+
+  /* ---------- Imagens (etapa 7: passam a vir do servidor) ---------- */
   MQ.media = {};
-  MQ.saveMedia = function () { return idbSet(KEY_MEDIA, MQ.media); };
+  MQ.saveMedia = () => Promise.resolve();
   /* Junta imagens recebidas; devolve quantas eram novas */
-  MQ.mergeMedia = function (incoming, markDirty) {
+  MQ.mergeMedia = function (incoming) {
     let n = 0;
     Object.keys(incoming || {}).forEach(id => { if (!MQ.media[id]) { MQ.media[id] = incoming[id]; n++; } });
-    if (n) {
-      MQ.saveMedia();
-      if (markDirty) { MQ.local.mediaDirty = true; MQ.saveLocal(); }
-    }
     return n;
   };
   MQ.imgHtml = function (id, alt) {
     const src = MQ.media[id];
-    if (!src) return '<div class="qimg missing">Imagem ainda não baixada. Sincronize para carregar.</div>';
+    if (!src) return '<div class="qimg missing">Imagem ainda não disponível.</div>';
     return '<figure class="qimg"><img src="' + src + '" alt="' + MQ.esc(alt || 'Imagem da questão') + '" loading="lazy" data-zoom="' + MQ.esc(id) + '"></figure>';
   };
 
-  let saveTimer = null, dirty = false;
-  const changeListeners = [];
-  MQ.onChange = fn => changeListeners.push(fn);
-
-  /* Marca alteração: salva em seguida e avisa a sincronização */
-  /* Falha ao gravar (disco cheio, navegador em modo restrito): sem aviso o estudante acha que está salvo */
-  const saveFailed = e => { console.error(e); MQ.toast('Não foi possível salvar neste navegador (talvez sem espaço). Exporte um backup em Configurações › Dados e backup.', 'err'); };
-  MQ.touch = function () {
-    clearTimeout(saveTimer);
-    dirty = true;
-    saveTimer = setTimeout(() => { dirty = false; idbSet(KEY_DATA, MQ.data).catch(saveFailed); }, 250);
-    changeListeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
-  };
-  MQ.saveNow = function () {
-    clearTimeout(saveTimer);
-    dirty = false;
-    return idbSet(KEY_DATA, MQ.data);
-  };
-  /* Fechar ou recarregar a aba logo depois de responder não perde o dado do debounce de 250 ms */
-  const flush = () => { if (dirty) MQ.saveNow().catch(saveFailed); };
-  window.addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
-  MQ.saveLocal = function () { return idbSet(KEY_LOCAL, MQ.local); };
-  /* Marca-texto (MQ.local.marks) como coleção para o backup: { qid: { id, qid, m, updatedAt } }.
-     shortcut: updatedAt = hora da exportação e marcação apagada não vira lápide; basta para levar ao servidor novo (PLANO-LARAVEL.md, etapa 0) */
-  MQ.marksForBackup = function () {
-    const lm = MQ.local.marks || {}, out = {}, now = Date.now();
-    Object.keys(lm).forEach(qid => {
-      const m = lm[qid];
-      if (m && Object.keys(m).some(k => m[k] && m[k].length)) out[qid] = { id: qid, qid, m, updatedAt: now, createdAt: now };
+  /* Marca-texto de um backup: só trechos [início, fim, cor] válidos em alvos conhecidos, para um arquivo
+     malformado não quebrar o marker.js nem pôr classe CSS solta. Devolve a coleção limpa para o mergeData. */
+  MQ.cleanMarks = function (marks) {
+    const out = {};
+    if (!isColl(marks)) return out;
+    const seg = g => Array.isArray(g) && g.length === 3 && Number.isInteger(g[0]) && Number.isInteger(g[1]) && g[0] >= 0 && g[1] > g[0] && /^[a-z]{1,12}$/.test(g[2]);
+    const num = v => (typeof v === 'number' && isFinite(v) ? v : undefined);
+    Object.keys(marks).forEach(id => {
+      const o = marks[id];
+      if (UNSAFE.has(id) || !isColl(o)) return;
+      const base = { id, qid: id, updatedAt: num(o.updatedAt) || MQ.now(), createdAt: num(o.createdAt) }; // sem hora: vale como edição de agora
+      if (o.deleted) { out[id] = { id, deleted: true, updatedAt: base.updatedAt, createdAt: base.createdAt }; return; }
+      if (!isColl(o.m)) return;
+      const m = {};
+      Object.keys(o.m).forEach(k => {
+        if (!/^(stem|[A-Z])$/.test(k) || !Array.isArray(o.m[k])) return;
+        const s = o.m[k].filter(seg).map(g => g.slice()).sort((x, y) => x[0] - y[0]).filter((g, i, a) => !i || g[0] >= a[i - 1][1]);
+        if (s.length) m[k] = s;
+      });
+      if (Object.keys(m).length) out[id] = Object.assign(base, { m });
     });
     return out;
   };
-  /* Volta a coleção "marks" de um backup para o marca-texto; a marcação que já existe aqui fica (as do arquivo não têm hora de edição real).
-     dry=true só conta. Devolve quantas questões ganharam marcação. */
-  MQ.marksFromBackup = function (marks, dry) {
-    if (!isColl(marks)) return 0;
-    const lm = MQ.local.marks || {}, clean = {};
-    const has = m => !!m && Object.keys(m).some(k => m[k] && m[k].length);
-    // só alvos conhecidos e trechos [início, fim, cor]: um arquivo malformado não pode quebrar o marker.js nem pôr classe CSS solta
-    const seg = g => Array.isArray(g) && g.length === 3 && Number.isInteger(g[0]) && Number.isInteger(g[1]) && g[0] >= 0 && g[1] > g[0] && /^[a-z]{1,12}$/.test(g[2]);
-    Object.keys(marks).forEach(id => {
-      const o = marks[id];
-      if (UNSAFE.has(id) || has(lm[id]) || !isColl(o) || o.deleted || !isColl(o.m)) return;
-      const m = {};
-      Object.keys(o.m).forEach(k => { if (/^(stem|[A-Z])$/.test(k) && Array.isArray(o.m[k])) { const s = o.m[k].filter(seg).map(g => g.slice()).sort((x, y) => x[0] - y[0]).filter((g, i, a) => !i || g[0] >= a[i - 1][1]); if (s.length) m[k] = s; } });
-      if (has(m)) clean[id] = m;
-    });
-    const ids = Object.keys(clean);
-    if (dry || !ids.length) return ids.length;
-    ids.forEach(id => { lm[id] = clean[id]; });
-    MQ.local.marks = lm;
-    MQ.saveLocal();
-    return ids.length;
-  };
-  /* Apaga tudo deste navegador (troca de conta ou "sair e apagar"); mantém só o id do aparelho */
+
+  /* Sai da conta neste navegador: esquece os dados em memória (o servidor continua com tudo) */
   MQ.resetData = async function () {
-    clearTimeout(saveTimer);
-    MQ.data = emptyData(); MQ.media = {};
-    MQ.local = { fontScale: 1, theme: 'auto', sync: {}, deviceId: MQ.local.deviceId, lastSync: 0, seeded: false };
-    await idbSet(KEY_DATA, MQ.data); await idbSet(KEY_MEDIA, MQ.media); await idbSet(KEY_LOCAL, MQ.local);
+    clearTimeout(timer);
+    MQ.data = emptyData(); MQ.media = {}; MQ.me = null; known = {}; cursor = null;
   };
 
   /* Registra/atualiza um item numa coleção */
@@ -156,7 +290,7 @@
     MQ.touch();
     return obj;
   };
-  /* Exclusão vira "lápide" para que a sincronização propague a remoção */
+  /* Exclusão vira "lápide" para que a remoção chegue ao servidor e aos outros aparelhos */
   MQ.remove = function (coll, id) {
     const o = MQ.data[coll][id];
     if (!o) return;
@@ -181,9 +315,8 @@
     return 'R1-' + String(max + 1).padStart(5, '0');
   };
 
-  /* Mescla dados remotos nos locais: em cada item vence a edição mais recente.
-     Mescla toda coleção que vier, inclusive as que esta versão ainda não usa,
-     para não apagar do Drive dados gravados por uma versão mais nova do app. */
+  /* Mescla dados (do servidor ou de um backup) nos que estão em memória: em cada item vence a edição mais recente.
+     Aceita qualquer coleção que vier; só as 9 conhecidas vão para o servidor. O que mudou entra na fila. */
   MQ.mergeData = function (remote) {
     let changed = 0;
     if (!remote) return 0;
@@ -201,7 +334,7 @@
       });
     });
     MQ.data.counter = Math.max(MQ.data.counter || 0, remote.counter || 0);
-    if (changed) { idbSet(KEY_DATA, MQ.data).catch(e => console.error(e)); }
+    if (changed) MQ.touch();
     return changed;
   };
 
@@ -263,7 +396,7 @@
     };
     MQ.put('attempts', a);
     MQ.reviewUpdate(a);
-    MQ.saveNow(); // o pagehide não garante a gravação no IndexedDB; a resposta vai direto ao disco
+    MQ.saveNow(); // a resposta vai ao servidor na hora, sem esperar os 250 ms
     return a;
   };
 

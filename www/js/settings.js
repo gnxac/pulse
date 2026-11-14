@@ -1,10 +1,10 @@
-/* Pulse — tela Configurações: conta e sincronização, aparência, estudo, backup, atalhos, administrador e sobre */
+/* Pulse — tela Configurações: conta e salvamento, aparência, estudo, backup, atalhos, administrador e sobre */
 (function (MQ) {
   'use strict';
   const { $, $$, esc, icon } = MQ;
   MQ.VERSION = '1.6.0'; // tests/versao.test.js confere com o package.json
 
-  const SECTIONS = [['conta', 'Conta e sincronização'], ['aparencia', 'Aparência'], ['estudo', 'Estudo'], ['dados', 'Dados e backup'], ['atalhos', 'Atalhos'], ['admin', 'Administrador'], ['sobre', 'Sobre']];
+  const SECTIONS = [['conta', 'Conta'], ['aparencia', 'Aparência'], ['estudo', 'Estudo'], ['dados', 'Dados e backup'], ['atalhos', 'Atalhos'], ['admin', 'Administrador'], ['sobre', 'Sobre']];
   const KEYS = [
     ['Em qualquer tela', [['Ctrl K', 'Buscar questão por texto ou código'], ['Ctrl 1–6', 'Início, Questões, Listas, Anotações, Desempenho, Configurações'], ['?', 'Mostrar os atalhos'], ['Esc', 'Fechar janela ou menu']]],
     ['Ao resolver', [['A–E', 'Escolher alternativa'], ['Shift A–E', 'Descartar alternativa'], ['Enter', 'Confirmar, depois próxima'], ['← →', 'Questão anterior ou próxima'], ['N', 'Anotação'], ['L', 'Adicionar à lista'], ['F', 'Modo foco (Esc sai)']]],
@@ -21,14 +21,6 @@
     return rows;
   }
 
-  /* Alterações feitas neste aparelho depois da última sincronização */
-  function pendingCount() {
-    const last = (MQ.local.sync || {}).lastSync || 0;
-    let n = 0;
-    ['attempts', 'folders', 'lists', 'runs', 'notes', 'reviews', 'prefs'].forEach(c => Object.values(MQ.data[c] || {}).forEach(o => { if ((o.updatedAt || 0) > last) n++; }));
-    return n;
-  }
-
   const phone = matchMedia('(max-width: 860px)');
   let phoneWatch = false;
 
@@ -36,7 +28,7 @@
     if (!phoneWatch) { phoneWatch = true; phone.addEventListener('change', () => { if (MQ.route().name === 'configuracoes') MQ.render(); }); }
     const theme = MQ.local.theme || 'auto';
     const scale = Math.round(Math.max(MQ.MIN_FONT_SCALE, MQ.local.fontScale || 1) * 100);
-    const st = MQ.syncStatus || { state: 'off', msg: 'Sem sincronização' };
+    const st = MQ.syncStatus;
     const secs = SECTIONS.filter(([k]) => k !== 'admin' || MQ.isAdmin());
     const nq = MQ.alive('questions').length, na = MQ.alive('attempts').length, nn = MQ.alive('notes').length;
 
@@ -44,13 +36,11 @@
     const ph = phone.matches, one = ph && secs.some(([k]) => k === arg) ? arg : null;
     const VALUES = { conta: st.msg, aparencia: { auto: 'Automático', light: 'Claro', dark: 'Escuro' }[theme] + ' · ' + scale + '%', estudo: MQ.dailyGoal() + '/dia', dados: na + ' respostas', atalhos: '', admin: '', sobre: 'v' + MQ.VERSION };
     const menu = '<nav class="set-menu" aria-label="Seções">' + secs.filter(([k]) => k !== 'atalhos' || matchMedia('(pointer: fine)').matches).map(([k, l]) => '<a class="set-link" href="#/configuracoes/' + k + '"><span>' + l + '</span><span class="set-val">' + esc(VALUES[k]) + '</span>' + icon('right') + '</a>').join('') + '</nav>';
-    const bk = MQ.local.lastBackup, bank = MQ.local.bank, pend = pendingCount();
-    const status = '<aside class="set-status" aria-label="Status da sincronização e do backup"><h2>Status</h2><dl class="kv">' +
-      '<dt>Sincronização</dt><dd>' + esc(st.msg) + '</dd>' +
-      '<dt>Última sincronização</dt><dd>' + ((MQ.local.sync || {}).lastSync ? MQ.fmtDateTime(MQ.local.sync.lastSync) : 'ainda não') + '</dd>' +
-      '<dt>Alterações pendentes</dt><dd>' + (pend ? pend + ' neste aparelho' : 'nenhuma') + '</dd>' +
-      '<dt>Último backup</dt><dd>' + (bk ? MQ.fmtDateTime(bk) : 'nunca exportado') + '</dd>' +
-      '<dt>Banco</dt><dd>' + (bank ? 'versão ' + Number(bank.version) : 'sem versão baixada') + '</dd></dl></aside>';
+    const bk = MQ.local.lastBackup, pend = MQ.pendingCount();
+    const status = '<aside class="set-status" aria-label="Status do salvamento e do backup"><h2>Status</h2><dl class="kv">' +
+      '<dt>Salvamento</dt><dd>' + esc(st.msg) + '</dd>' +
+      '<dt>Alterações pendentes</dt><dd>' + (pend ? pend + ' por enviar' : 'nenhuma') + '</dd>' +
+      '<dt>Último backup</dt><dd>' + (bk ? MQ.fmtDateTime(bk) : 'nunca exportado') + '</dd></dl></aside>';
 
     root.innerHTML = (one
       ? '<div class="page-head"><div><a class="btn sm" href="#/configuracoes">' + icon('left') + ' Configurações</a><h1>' + esc(secs.find(([k]) => k === one)[1]) + '</h1></div></div>'
@@ -58,12 +48,9 @@
       '<div class="set-wrap">' +
       (ph ? (one ? '' : menu) :'<nav class="set-index" aria-label="Seções">' + secs.map(([k, l]) => '<a href="#/configuracoes/' + k + '" data-go="' + k + '">' + l + '</a>').join('') + '</nav>') +
       '<div class="settings">' +
-      '<section class="set-sec" id="s-conta"><h2>Conta e sincronização</h2>' +
-      '<div class="sync-pill set-pill" role="status" title="' + esc(st.detail || st.msg) + '" aria-label="Sincronização: ' + esc(st.msg) + '"><span class="sync-dot ' + MQ.syncDot(st.state) + '"></span><span class="sync-label">' + esc(st.msg) + '</span></div>' +
-      '<div id="set-sync"></div>' +
-      '<h3 class="set-sub">Banco de questões</h3><p id="bank-info" role="status">' + (MQ.local.bank ? 'Banco: versão ' + Number(MQ.local.bank.version) + ', ' + Number(MQ.local.bank.count) + ' questões, atualizado em ' + MQ.fmtDate(MQ.local.bank.updatedAt)
-        : MQ.isAdmin() || MQ.bankConfigured() ? 'Banco: ainda sem versão baixada.' : 'O banco publicado ainda não está disponível neste app. Você continua com as questões que já tem aqui.') + '</p>' +
-      (MQ.isAdmin() ? '<button class="btn" id="bank-pub">Publicar banco para todos</button>' : MQ.bankConfigured() ? '<button class="btn' + (MQ.local.bank ? '' : ' primary') + '" id="bank-get">' + (MQ.local.bank ? 'Verificar atualização' : 'Baixar banco de questões') + '</button>' : '') + '</section>' +
+      '<section class="set-sec" id="s-conta"><h2>Conta</h2>' +
+      '<div class="set-row"><div class="sync-pill set-pill" role="status" title="' + esc(st.msg) + '" aria-label="Salvamento: ' + esc(st.msg) + '"><span class="sync-dot ' + MQ.syncDot(st.state) + '"></span><span class="sync-label">' + esc(st.msg) + '</span></div>' + MQ.retryHtml() + '</div>' +
+      '<p class="muted small">Suas respostas, listas, simulados, anotações, revisões, marcações e a meta diária ficam salvos na sua conta, no servidor do Pulse.</p></section>' +
 
       '<section class="set-sec" id="s-aparencia"><h2>Aparência</h2>' +
       '<div class="set-row"><span>Tema</span><div class="seg" role="group" aria-label="Tema">' +
@@ -81,7 +68,7 @@
       [['nao', 'Que não resolvi'], ['todas', 'Todas']].map(([v, l]) => '<button data-fp="' + v + '" aria-pressed="' + ((MQ.local.filtroPadrao || 'nao') === v) + '">' + l + '</button>').join('') + '</div></div></section>' +
 
       '<section class="set-sec" id="s-dados"><h2>Dados e backup</h2>' +
-      '<p class="muted small">' + nq + ' questões · ' + na + ' respostas · ' + nn + ' anotações neste aparelho.</p>' +
+      '<p class="muted small">' + nq + ' questões · ' + na + ' respostas · ' + nn + ' anotações na sua conta.</p>' +
       '<div class="set-actions"><button class="btn" id="d-export">' + icon('download') + ' Exportar backup completo</button><button class="btn" id="d-restore">' + icon('upload') + ' Restaurar de um arquivo</button><button class="btn" id="d-csv">' + icon('download') + ' Exportar respostas (CSV)</button></div>' +
       '<p class="muted small">Restaurar junta o arquivo com o que você já tem e não apaga o que é mais novo que o arquivo. O backup inclui questões, listas, respostas, anotações, revisões e imagens.</p></section>' +
 
@@ -90,21 +77,12 @@
 
       (MQ.isAdmin() ? '<section class="set-sec" id="s-admin"><h2>Administrador</h2><a class="set-link" href="#/cadastrar"><span>Cadastrar questões</span>' + icon('right') + '</a><button class="btn" id="bank-dedupe" style="margin-top:10px">Remover questões repetidas</button></section>' : '') +
 
-      '<section class="set-sec" id="s-sobre"><h2>Sobre</h2><p><b>Pulse</b> · versão ' + MQ.VERSION + '</p><p class="muted small">Banco de questões para residência médica. Seus dados ficam neste aparelho e sincronizam pela sua conta Google.</p></section>' +
+      '<section class="set-sec" id="s-sobre"><h2>Sobre</h2><p><b>Pulse</b> · versão ' + MQ.VERSION + '</p><p class="muted small">Banco de questões para residência médica. Seus dados ficam na sua conta, no servidor do Pulse, e podem ser exportados em Dados e backup.</p></section>' +
       '</div>' + (ph ? '' : status) + '</div>';
     if (ph) { if (one) $$('.set-sec', root).forEach(s => { if (s.id !== 's-' + one) s.remove(); }); else $('.settings', root).remove(); }
     const sub = $('.set-sec h2', root); if (ph && one && sub) sub.hidden = true; // o título já está no cabeçalho
 
     if ($('#bank-dedupe', root)) $('#bank-dedupe', root).onclick = MQ.dedupeDialog;
-    if ($('#bank-pub', root)) $('#bank-pub', root).onclick = MQ.publishDialog;
-    if ($('#bank-get', root)) $('#bank-get', root).onclick = async e => {
-      const b = e.currentTarget, was = b.textContent;
-      if (b.getAttribute('aria-busy')) return;
-      b.setAttribute('aria-busy', 'true'); b.textContent = 'Verificando…';
-      await MQ.syncBank(true); // avisa por toast o resultado, inclusive o erro e o que fazer
-      b.removeAttribute('aria-busy'); b.textContent = was;
-    };
-    if ($('#set-sync', root)) MQ.syncSection($('#set-sync', root));
 
     $$('[data-go]', root).forEach(a => a.onclick = e => { e.preventDefault(); const t = $('#s-' + a.dataset.go, root); if (t) { t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); t.tabIndex = -1; t.focus({ preventScroll: true }); } });
     $$('[data-theme-set]', root).forEach(b => b.onclick = () => {

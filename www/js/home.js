@@ -218,9 +218,9 @@
     const hour = new Date().getHours();
     const greet = hour >= 18 ? 'Boa noite' : hour < 5 ? 'Boa madrugada' : hour < 12 ? 'Bom dia' : 'Boa tarde';
     const date = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-    const st = MQ.syncStatus || { state: 'off', msg: 'Sem sincronização' };
+    const st = MQ.syncStatus;
     const hello = '<div class="hm hm-hello"><div><div class="st">' + esc(date.charAt(0).toUpperCase() + date.slice(1)) + '</div><h1>' + greet + '</h1></div>' +
-      '<span class="home-sync" role="status" aria-label="Sincronização: ' + esc(st.msg) + '" title="' + esc(st.msg) + '"><span class="sync-dot ' + MQ.syncDot(st.state) + '"></span><span class="sync-label">' + esc(st.msg) + '</span></span></div>';
+      '<span class="home-save"><span class="home-sync" role="status" aria-label="Salvamento: ' + esc(st.msg) + '" title="' + esc(st.msg) + '"><span class="sync-dot ' + MQ.syncDot(st.state) + '"></span><span class="sync-label">' + esc(st.msg) + '</span></span>' + MQ.retryHtml() + '</span></div>';
     const card = (cls, html) => '<section class="hm-card ' + cls + '">' + html + '</section>';
     const nQ = MQ.alive('questions').length;
 

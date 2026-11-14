@@ -1134,7 +1134,20 @@ body.logged-out .shell { display: none; }
   body.in-solve .rail .sync-pill { flex-direction: column; gap: 4px; text-align: center; }
   body.in-solve .rail .sync-short { display: block; font-size: 12px; font-weight: 600; line-height: 1.2; }
 }
-@media (min-width: 600px) { .home-sync { display: none; } }
+/* Não salvo · Tentar de novo: o botão só aparece quando o envio falhou */
+.home-save { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (min-width: 600px) { .home-save { display: none; } } /* a barra lateral já mostra */
+.btn.save-retry { min-height: 44px; }
+.btn.save-retry[hidden] { display: none; }
+.rail-foot .save-retry { margin-top: 8px; white-space: normal; line-height: 1.2; }
+@media (max-width: 1199px) {
+  .rail-foot { flex-direction: column; align-items: center; }
+  .rail .save-retry { width: 64px; padding: 6px 4px; font-size: 12px; }
+}
+@media (min-width: 1200px) {
+  body.in-solve .rail-foot { flex-direction: column; align-items: center; }
+  body.in-solve .rail .save-retry { width: 64px; padding: 6px 4px; font-size: 12px; }
+}
 
 /* C-4: a ação principal da tela fica fixa acima da barra inferior no celular, ao alcance do polegar */
 @media (max-width: 599px) {
@@ -1156,3 +1169,5 @@ body.logged-out .shell { display: none; }
 .sync-danger { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .sync-danger summary, #s-atalhos summary { cursor: pointer; min-height: 44px; display: list-item; line-height: 44px; font-weight: 600; color: var(--ink-2); }
 #s-atalhos summary h2 { margin: 0; display: inline; line-height: 44px; }
+/* Configurações › Conta: acima de 860px o indicador e o botão ficam só na barra lateral */
+@media (min-width: 861px) { #s-conta .save-retry { display: none; } }
