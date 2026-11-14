@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\QuestoesTesteSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -77,5 +79,36 @@ class CriarAdminTest extends TestCase
         Artisan::call('db:seed', ['--class' => DatabaseSeeder::class]);
         $this->assertSame(2, User::count());
         $this->assertStringNotContainsString($admin[1], Artisan::output());
+    }
+
+    public function test_seeder_publica_as_12_questoes_de_teste_do_admin_teste(): void
+    {
+        Artisan::call('db:seed', ['--class' => DatabaseSeeder::class]);
+        $admin = User::where('username', 'admin-teste')->value('id');
+        $this->assertSame(12, DB::table('questions')->where(['owner_id' => $admin, 'publicada' => true, 'deleted' => false])->count());
+
+        // Rodar de novo não duplica nem desfaz uma lápide feita pelo app.
+        DB::table('questions')->where('id', 'teste-02')->update(['deleted' => true]);
+        Artisan::call('db:seed', ['--class' => DatabaseSeeder::class]);
+        $this->assertSame(12, DB::table('questions')->count());
+        $this->assertTrue(DB::table('questions')->where('id', 'teste-02')->value('deleted'));
+        DB::table('questions')->where('id', 'teste-02')->update(['deleted' => false]);
+
+        // O estudante recebe as 12 pelo GET /api/dados, no formato do front.
+        $questoes = $this->actingAs(User::where('username', 'estudante-teste')->first())->getJson('/api/dados')->json('questions');
+        $this->assertCount(12, $questoes);
+        $this->assertSame('C', $questoes['teste-01']['gabarito']);
+        $this->assertCount(5, $questoes['teste-12']['alternativas']);
+    }
+
+    public function test_seeder_nao_roda_em_producao(): void
+    {
+        User::factory()->create(['username' => 'admin-teste', 'role' => 'admin']); // isola a guarda do QuestoesTesteSeeder
+        $this->app['env'] = 'production';
+        Artisan::call('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true]);
+        Artisan::call('db:seed', ['--class' => QuestoesTesteSeeder::class, '--force' => true]);
+
+        $this->assertSame(1, User::count());
+        $this->assertSame(0, DB::table('questions')->count());
     }
 }

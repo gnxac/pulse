@@ -1,0 +1,494 @@
+[
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Clínica Médica",
+    "especialidade": "Cardiologia",
+    "tema": "Insuficiência Cardíaca",
+    "subtema": "Tratamento",
+    "enunciado": "Homem de 64 anos com insuficiência cardíaca de fração de ejeção reduzida (FE 30%) está em acompanhamento ambulatorial.\n\nQual dos fármacos abaixo melhora sintomas e reduz hospitalizações, mas NÃO demonstrou redução de mortalidade nesse cenário?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Dapagliflozina"
+      },
+      {
+        "l": "B",
+        "t": "Sacubitril-valsartana"
+      },
+      {
+        "l": "C",
+        "t": "Digoxina"
+      },
+      {
+        "l": "D",
+        "t": "Espironolactona"
+      },
+      {
+        "l": "E",
+        "t": "Bisoprolol"
+      }
+    ],
+    "gabarito": "C",
+    "comentario": "A digoxina reduz hospitalizações por IC (estudo DIG), mas não altera mortalidade. Os outros quatro integram a terapia que reduz mortalidade na IC com FE reduzida: betabloqueador, antagonista mineralocorticoide, inibidor da neprilisina/BRA e iSGLT2.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Clínica Médica",
+    "especialidade": "Endocrinologia",
+    "tema": "Cetoacidose Diabética",
+    "subtema": "Manejo",
+    "enunciado": "Mulher de 22 anos com diabetes tipo 1 chega com glicemia de 480 mg/dL, pH 7,10, bicarbonato 8 mEq/L e potássio sérico de 3,0 mEq/L. Já recebeu 1 L de soro fisiológico.\n\nQual a próxima conduta?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Iniciar insulina regular em bomba a 0,1 UI/kg/h imediatamente"
+      },
+      {
+        "l": "B",
+        "t": "Administrar bicarbonato de sódio"
+      },
+      {
+        "l": "C",
+        "t": "Repor potássio e adiar a insulina até K ≥ 3,3 mEq/L"
+      },
+      {
+        "l": "D",
+        "t": "Trocar a hidratação para soro glicosado a 5%"
+      },
+      {
+        "l": "E",
+        "t": "Iniciar insulina e repor potássio ao mesmo tempo"
+      }
+    ],
+    "gabarito": "C",
+    "comentario": "A insulina leva o potássio para dentro da célula e pode precipitar hipocalemia grave e arritmias. Com K < 3,3 mEq/L, repõe-se potássio primeiro e só depois se inicia a insulina. Bicarbonato fica reservado para pH < 6,9.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Cirurgia",
+    "especialidade": "Cirurgia Geral",
+    "tema": "Hérnias da Parede Abdominal",
+    "subtema": "Hérnia Inguinal",
+    "enunciado": "Durante uma hernioplastia inguinal, o cirurgião identifica que o saco herniário se projeta através do triângulo de Hesselbach, medialmente aos vasos epigástricos inferiores.\n\nComo se classifica essa hérnia?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Indireta"
+      },
+      {
+        "l": "B",
+        "t": "Direta"
+      },
+      {
+        "l": "C",
+        "t": "Femoral"
+      },
+      {
+        "l": "D",
+        "t": "De Spiegel"
+      },
+      {
+        "l": "E",
+        "t": "Obturadora"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "O triângulo de Hesselbach é limitado pelos vasos epigástricos inferiores, pela borda lateral do reto abdominal e pelo ligamento inguinal. Hérnias que o atravessam (mediais aos epigástricos) são diretas; as indiretas passam pelo anel inguinal profundo, laterais aos vasos.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Pediatria",
+    "especialidade": "Neonatologia",
+    "tema": "Icterícia Neonatal",
+    "subtema": "Avaliação",
+    "enunciado": "Recém-nascido a termo, em alojamento conjunto, apresenta icterícia visível na face e no tronco com 18 horas de vida. Mãe O+, RN A+.\n\nQual a interpretação mais adequada?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Icterícia fisiológica; reavaliar em 48 horas"
+      },
+      {
+        "l": "B",
+        "t": "Icterícia do leite materno; suspender amamentação"
+      },
+      {
+        "l": "C",
+        "t": "Icterícia patológica; investigar hemólise e dosar bilirrubinas"
+      },
+      {
+        "l": "D",
+        "t": "Normal para a idade; alta com orientação"
+      },
+      {
+        "l": "E",
+        "t": "Sugere atresia de vias biliares"
+      }
+    ],
+    "gabarito": "C",
+    "comentario": "Icterícia nas primeiras 24 horas de vida é sempre patológica. Com mãe O e RN A, a incompatibilidade ABO é a principal hipótese: dosar bilirrubina total e frações, hemograma, reticulócitos e Coombs direto.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Pediatria",
+    "especialidade": "Infectologia Pediátrica",
+    "tema": "Doenças Exantemáticas",
+    "subtema": "Exantema Súbito",
+    "enunciado": "Lactente de 11 meses teve febre alta (39,5 °C) por 3 dias, em bom estado geral. No dia em que a febre cedeu, surgiu exantema maculopapular róseo em tronco, que poupa a face.\n\nQual o agente mais provável?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Parvovírus B19"
+      },
+      {
+        "l": "B",
+        "t": "Herpesvírus humano tipo 6"
+      },
+      {
+        "l": "C",
+        "t": "Vírus do sarampo"
+      },
+      {
+        "l": "D",
+        "t": "Streptococcus pyogenes"
+      },
+      {
+        "l": "E",
+        "t": "Vírus da rubéola"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "Exantema súbito (roséola infantum): febre alta por 3 a 5 dias e exantema que aparece quando a febre desaparece, típico de lactentes. O agente é o HHV-6 (menos frequentemente o HHV-7).",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Ginecologia",
+    "especialidade": "Endocrinologia Ginecológica",
+    "tema": "Síndrome dos Ovários Policísticos",
+    "subtema": "Diagnóstico",
+    "enunciado": "Pelos critérios de Rotterdam, o diagnóstico de síndrome dos ovários policísticos exige:",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Os três critérios: oligo/anovulação, hiperandrogenismo e ovários policísticos ao ultrassom"
+      },
+      {
+        "l": "B",
+        "t": "Dois de três critérios, após exclusão de outras causas"
+      },
+      {
+        "l": "C",
+        "t": "Hiperandrogenismo obrigatório associado a um dos outros critérios"
+      },
+      {
+        "l": "D",
+        "t": "Resistência insulínica comprovada"
+      },
+      {
+        "l": "E",
+        "t": "Relação LH/FSH maior que 2"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "Rotterdam (2003): dois de três critérios — oligo/anovulação, hiperandrogenismo clínico ou laboratorial, morfologia ovariana policística — excluídas outras causas (hiperprolactinemia, tireoidopatias, hiperplasia adrenal congênita não clássica). Hiperandrogenismo obrigatório é o critério da Androgen Excess Society.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Obstetrícia",
+    "especialidade": "Obstetrícia Patológica",
+    "tema": "Doenças Hipertensivas da Gestação",
+    "subtema": "Sulfato de Magnésio",
+    "enunciado": "Gestante com pré-eclâmpsia grave recebe sulfato de magnésio (esquema de Zuspan).\n\nQual o primeiro sinal clínico de intoxicação a ser monitorado?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Depressão respiratória"
+      },
+      {
+        "l": "B",
+        "t": "Abolição do reflexo patelar"
+      },
+      {
+        "l": "C",
+        "t": "Parada cardíaca"
+      },
+      {
+        "l": "D",
+        "t": "Oligúria"
+      },
+      {
+        "l": "E",
+        "t": "Rebaixamento do nível de consciência"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "O reflexo patelar desaparece com magnesemia em torno de 8 a 10 mEq/L, antes da depressão respiratória (~12) e da parada cardíaca. Também se monitoram diurese (> 25 mL/h) e frequência respiratória (> 16 irpm). O antídoto é o gluconato de cálcio 10%.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Obstetrícia",
+    "especialidade": "Assistência ao Parto",
+    "tema": "Hemorragia Pós-parto",
+    "subtema": "Etiologia",
+    "enunciado": "Qual a causa mais frequente de hemorragia pós-parto primária?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Laceração de trajeto"
+      },
+      {
+        "l": "B",
+        "t": "Retenção placentária"
+      },
+      {
+        "l": "C",
+        "t": "Atonia uterina"
+      },
+      {
+        "l": "D",
+        "t": "Coagulopatia"
+      },
+      {
+        "l": "E",
+        "t": "Inversão uterina"
+      }
+    ],
+    "gabarito": "C",
+    "comentario": "Pelo mnemônico dos 4 Ts (Tônus, Trauma, Tecido, Trombina), o tônus — atonia uterina — responde pela grande maioria dos casos, em torno de 70%.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Medicina Preventiva",
+    "especialidade": "Epidemiologia",
+    "tema": "Testes Diagnósticos",
+    "subtema": "Valores Preditivos",
+    "enunciado": "Um teste foi aplicado em 1.000 pessoas, das quais 100 têm a doença. Entre os doentes, 90 tiveram teste positivo; entre os sadios, 90 tiveram teste positivo.\n\nQual o valor preditivo positivo do teste?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "10%"
+      },
+      {
+        "l": "B",
+        "t": "50%"
+      },
+      {
+        "l": "C",
+        "t": "90%"
+      },
+      {
+        "l": "D",
+        "t": "81%"
+      },
+      {
+        "l": "E",
+        "t": "95%"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "VPP = VP / (VP + FP) = 90 / (90 + 90) = 50%. Repare que a sensibilidade é 90% (90/100) e a especificidade também é 90% (810/900), mas com prevalência de 10% metade dos positivos são falsos.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Medicina Preventiva",
+    "especialidade": "Políticas de Saúde",
+    "tema": "SUS",
+    "subtema": "Princípios e Diretrizes",
+    "enunciado": "Qual das opções corresponde a um princípio organizativo (e não doutrinário) do SUS?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Universalidade"
+      },
+      {
+        "l": "B",
+        "t": "Integralidade"
+      },
+      {
+        "l": "C",
+        "t": "Equidade"
+      },
+      {
+        "l": "D",
+        "t": "Descentralização"
+      },
+      {
+        "l": "E",
+        "t": "Igualdade"
+      }
+    ],
+    "gabarito": "D",
+    "comentario": "Doutrinários: universalidade, integralidade e equidade. Organizativos: descentralização (com direção única em cada esfera), regionalização e hierarquização, e participação da comunidade.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Clínica Médica",
+    "especialidade": "Pneumologia",
+    "tema": "Tromboembolismo Pulmonar",
+    "subtema": "Diagnóstico",
+    "enunciado": "Mulher de 35 anos, sem comorbidades, com dor torácica pleurítica leve. Escore de Wells calculado em 1 ponto (TEP improvável), estável hemodinamicamente.\n\nQual o próximo passo?",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Angiotomografia de tórax imediatamente"
+      },
+      {
+        "l": "B",
+        "t": "Dosar D-dímero"
+      },
+      {
+        "l": "C",
+        "t": "Anticoagulação plena empírica"
+      },
+      {
+        "l": "D",
+        "t": "Cintilografia ventilação/perfusão"
+      },
+      {
+        "l": "E",
+        "t": "Ecocardiograma transtorácico"
+      }
+    ],
+    "gabarito": "B",
+    "comentario": "Com probabilidade pré-teste baixa (TEP improvável), o D-dímero tem alto valor preditivo negativo: se normal, exclui TEP. Se elevado, segue-se para a angiotomografia.",
+    "anulada": false,
+    "desatualizada": false
+  },
+  {
+    "instituicao": "Exemplo autoral",
+    "uf": "",
+    "ano": 2026,
+    "finalidade": "Residência (Acesso Direto)",
+    "banca": "",
+    "professor": "",
+    "exemplo": true,
+    "tipo": "multipla",
+    "area": "Clínica Médica",
+    "especialidade": "Infectologia",
+    "tema": "HIV",
+    "subtema": "Profilaxia Pós-exposição",
+    "enunciado": "Profissional de saúde sofre acidente percutâneo com material biológico de paciente HIV positivo.\n\nSobre a profilaxia pós-exposição (PEP), é correto afirmar:",
+    "alternativas": [
+      {
+        "l": "A",
+        "t": "Deve ser iniciada em até 72 horas e mantida por 28 dias"
+      },
+      {
+        "l": "B",
+        "t": "Só é indicada se o paciente-fonte tiver carga viral detectável"
+      },
+      {
+        "l": "C",
+        "t": "Deve ser mantida por 7 dias"
+      },
+      {
+        "l": "D",
+        "t": "Pode ser iniciada em até 7 dias após a exposição"
+      },
+      {
+        "l": "E",
+        "t": "Dispensa testagem do acidentado"
+      }
+    ],
+    "gabarito": "A",
+    "comentario": "A PEP deve começar o quanto antes, idealmente nas 2 primeiras horas e no máximo em 72 horas, e durar 28 dias. Testa-se o acidentado no momento basal e no seguimento.",
+    "anulada": false,
+    "desatualizada": false
+  }
+]

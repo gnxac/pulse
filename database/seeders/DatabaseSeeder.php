@@ -31,5 +31,7 @@ class DatabaseSeeder extends Seeder
             $user->save();
             $this->command?->line("{$username}: {$senha}");
         }
+
+        $this->call(QuestoesTesteSeeder::class);
     }
 }
