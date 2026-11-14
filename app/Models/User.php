@@ -20,6 +20,9 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
+    /** D6: só minúsculas, números, ponto e hífen. O D evita que "nome\n" passe. Igual ao CHECK do banco. */
+    public const FORMATO_USERNAME = '/^[a-z0-9.-]+$/D';
+
     protected function casts(): array
     {
         return [
